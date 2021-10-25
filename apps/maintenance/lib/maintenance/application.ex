@@ -11,9 +11,11 @@ defmodule Maintenance.Application do
       # Start the Ecto repository
       Maintenance.Repo,
       # Start the PubSub system
-      {Phoenix.PubSub, name: Maintenance.PubSub}
+      {Phoenix.PubSub, name: Maintenance.PubSub},
       # Start a worker by calling: Maintenance.Worker.start_link(arg)
       # {Maintenance.Worker, arg}
+      Maintenance.DB,
+      {Task.Supervisor, name: Maintenance.TaskSupervisor}
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Maintenance.Supervisor)
