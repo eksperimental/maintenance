@@ -41,13 +41,13 @@ defmodule Maintenance.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:jason, "~> 1.2"},
       {:swoosh, "~> 1.3"},
-      {:req, "~> 0.1.2"},
-      # {:req, git: "https://github.com/wojtekmach/req/"},
+      # {:req, "~> 0.1.2"},
+      {:req, git: "https://github.com/wojtekmach/req/"},
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:tentacat, "~> 2.0"},
       {:cubdb, "~> 1.1.0"},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:cub_ecto, path: "../../../cubecto/", branch: "main"},
+      {:cub_ecto, path: "../../../../cubecto/", branch: "main"},
     ]
   end
 
