@@ -28,7 +28,6 @@ defmodule MaintenanceWeb.Endpoint do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
     plug Phoenix.CodeReloader
-    plug Phoenix.Ecto.CheckRepoStatus, otp_app: :maintenance_web
   end
 
   plug Phoenix.LiveDashboard.RequestLogger,

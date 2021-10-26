@@ -193,15 +193,15 @@ defmodule Maintenance.Project do
     end
   end
 
-  defp get_latest_unicode_db_entry(project, key, version)
-       when is_project(project) and is_atom(key) and is_version(version) do
-    {:ok, results} = DB.select(min_key: {project, key, 0}, reverse: true, pipe: [take: 1])
+  # defp get_latest_unicode_db_entry(project, key, version)
+  #      when is_project(project) and is_atom(key) and is_version(version) do
+  #   {:ok, results} = DB.select(min_key: {project, key, 0}, reverse: true, pipe: [take: 1])
 
-    case results do
-      [{_, entry}] -> entry
-      [] -> nil
-    end
-  end
+  #   case results do
+  #     [{_, entry}] -> entry
+  #     [] -> nil
+  #   end
+  # end
 
   defp get_unicode_db_entry(project, key, version)
        when is_project(project) and is_atom(key) and is_version(version) do
