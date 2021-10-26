@@ -88,4 +88,11 @@ defmodule Maintenance do
   def auth_url("https://" <> rest) do
     "https://" <> "eksperimental:" <> github_access_token() <> "@" <> rest
   end
+
+  @doc """
+  List projects
+  """
+  def projects() do
+    @projects
+  end
 end
