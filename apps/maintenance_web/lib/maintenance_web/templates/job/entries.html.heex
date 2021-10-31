@@ -10,7 +10,7 @@
     </tr>
   </thead>
   <tbody>
-<%= for {k, v} <- @entries do %>
+<%= for {_k, v} <- @entries do %>
     <tr>
       <td><%= inspect(v.value) %></td>
       <td><%= Calendar.strftime(v.created_at, "%c %Z") %></td>

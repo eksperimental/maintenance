@@ -51,6 +51,10 @@ config :phoenix, :json_library, Jason
 
 config :tentacat, :extra_headers, [{"Accept", "application/vnd.github.black-cat-preview+json"}]
 
+config :maintenance, :git_repo_url, "https://github.com/eksperimental/maintenance"
+# config :maintenance, :author_name, "Eksperimental"
+# config :maintenance, :author_email, "eksperimental@autistici.org"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "env.local.exs"

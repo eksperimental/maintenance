@@ -1,7 +1,6 @@
 defmodule Maintenance do
-  alias Maintenance.{UCD, Project}
-
   @app_name :maintenance
+
   @projects [:elixir, :otp]
   @jobs [:unicode]
 
@@ -17,6 +16,9 @@ defmodule Maintenance do
 
   @doc false
   def app_name(), do: @app_name
+
+  @doc false
+  def git_repo_url(), do: Application.get_env(@app_name, :git_repo_url)
 
   @doc false
   def cache_path() do
@@ -59,34 +61,6 @@ defmodule Maintenance do
 
   def default(project, key) when is_project(project) and is_atom(key) do
     default(project) |> Map.fetch!(key)
-  end
-
-  # @spec update() :: :ok
-  # def update() do
-  #   for project <- @projects do
-
-  #   end
-  # end
-
-  @doc """
-  Updates the Unicode in the given `project` by creating a git commit.
-
-  This is the entry point to update the Unicode.
-  """
-  @spec update(project) :: :ok
-  def update(project) when is_project(project) do
-    %{
-      needs_update?: needs_update?,
-      current_unicode_version: _current_unicode_version,
-      latest_unicode_version: latest_unicode_version
-    } = UCD.calculate_update(project)
-
-    if needs_update? do
-      {:ok, contents_ucd} = UCD.get_latest_ucd()
-      Project.update(project, latest_unicode_version, contents_ucd)
-    else
-      :ok
-    end
   end
 
   @doc false
