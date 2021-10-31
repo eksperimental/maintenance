@@ -17,9 +17,14 @@ defmodule MaintenanceWeb.Router do
   scope "/", MaintenanceWeb do
     pipe_through :browser
 
-    get "/", PageController, :index
-    resources "/projects", ProjectController
+    get "/", ProjectController, :index
+    get  "/projects", ProjectController, :index
     # resources "/entries", EntryController
+
+    # get "/job", JobController, :show_project
+    get "/job", JobController, :index
+    get "/job/:project/", JobController, :show_jobs
+    get "/job/:project/:job/", JobController, :show_entries
   end
 
   # Other scopes may use custom stacks.

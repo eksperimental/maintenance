@@ -5,87 +5,109 @@ defmodule Maintenance.DB do
   Currently we use CubDB.
   """
 
+  import Maintenance, only: [is_project: 1]
   use GenServer
 
-  @type state :: %{db: pid()}
+  @type state :: %{project => pid()}
   @type key :: term
   @type value :: term
+  @type project :: Maintenance.project()
+  @type order :: :asc | :desc
+
+  # defguardp is_order(term) when term in [:asc, :desc]
 
   @spec start_link(term) :: GenServer.on_start()
   def start_link(state) do
     GenServer.start_link(__MODULE__, state, name: __MODULE__)
   end
 
-  @spec get(key, value) :: value
-  def get(key, default \\ nil) do
-    GenServer.call(__MODULE__, {:get, key, default})
+  @spec get(project, key, value) :: value
+  def get(project, key, default \\ nil) when is_project(project) do
+    GenServer.call(__MODULE__, {:get, project, key, default})
   end
 
-  @spec select(key) :: value
-  def select(key) do
-    GenServer.call(__MODULE__, {:select, key})
+  @spec select(project, keyword) :: value
+  def select(project, options \\ []) when is_project(project) do
+    GenServer.call(__MODULE__, {:select, project, options})
   end
 
-  @spec fetch(key) :: {:ok, value} | :error
-  def fetch(key) do
-    GenServer.call(__MODULE__, {:fetch, key})
+  @spec fetch(project, key) :: {:ok, value} | :error
+  def fetch(project, key) when is_project(project) do
+    GenServer.call(__MODULE__, {:fetch, project, key})
   end
 
-  @spec put(key, value) :: value
-  def put(key, value) do
-    GenServer.call(__MODULE__, {:put, key, value})
+  @spec put(project, key, value) :: value
+  def put(project, key, value) when is_project(project) do
+    GenServer.call(__MODULE__, {:put, project, key, value})
   end
 
-  @spec delete(key) :: :ok
-  def delete(key) do
-    GenServer.call(__MODULE__, {:delete, key})
+  @spec delete(project, key) :: :ok
+  def delete(project, key) when is_project(project) do
+    GenServer.call(__MODULE__, {:delete, project, key})
   end
+
+  # @spec sort(map, order) :: :ok
+  # def sort(map, order) when is_map(map) and is_order(order) do
+  #   Enum.sort_by(map, &(&1.__sort__), order)
+  # end
 
   ## Callbacks
 
   @impl true
   @spec init(term) :: {:ok, state()} | {:stop, reason :: any()}
   def init(_) do
-    case CubDB.start_link(data_dir: Maintenance.db_path()) do
-      {:ok, db} ->
-        {:ok, %{db: db}}
+    projects = Maintenance.projects()
 
-      {:error, reason} ->
+    result =
+    Enum.reduce_while(projects, %{}, fn project, acc ->
+      case CubDB.start_link(data_dir: Maintenance.db_path(project)) do
+        {:ok, db} ->
+          {:cont, Map.put(acc, project, db)}
+
+        {:error, reason} ->
+          {:halt, {:stop, reason}}
+      end
+    end)
+
+    case result do
+      {:stop, reason} ->
         {:stop, reason}
+      _ ->
+        {:ok, result}
     end
   end
 
   @impl true
   @spec handle_call(term, GenServer.from(), state) :: {:reply, term(), state}
-  def handle_call({:get, key, default}, _from, state) do
-    value = CubDB.get(state.db, key, default)
+  def handle_call({:get, project, key, default}, _from, state) do
+    value = state |> Map.get(project) |> CubDB.get(key, default)
 
     {:reply, value, state}
   end
 
-  def handle_call({:select, options}, _from, state) do
-    value = CubDB.select(state.db, options)
+  def handle_call({:select, project, options}, _from, state) do
+    value = state |> Map.get(project) |> CubDB.select(options)
 
     {:reply, value, state}
   end
 
   @impl true
-  def handle_call({:fetch, key}, _from, state) do
-    reply = CubDB.fetch(state.db, key)
+  def handle_call({:fetch, project, key}, _from, state) do
+    reply = state |> Map.get(project) |> CubDB.fetch(key)
 
     {:reply, reply, state}
   end
 
   @impl true
-  def handle_call({:put, key, value}, _from, state) do
-    reply = CubDB.put(state.db, key, value)
+  def handle_call({:put, project, key, value}, _from, state) do
+    reply = state |> Map.get(project) |> CubDB.put(key, value)
 
     {:reply, reply, state}
   end
 
   @impl true
-  def handle_call({:delete, key}, _from, state) do
-    reply = CubDB.delete(state.db, key)
+  def handle_call({:delete, project, key}, _from, state) do
+    reply = state |> Map.get(project) |> CubDB.delete(key)
 
     {:reply, reply, state}
   end

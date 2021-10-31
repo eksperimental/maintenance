@@ -314,8 +314,8 @@ defmodule Maintenance.Git do
       {:ok, created_at, _offset} =
         Map.fetch!(github_response, "created_at") |> DateTime.from_iso8601()
 
-      DB.put({project, :unicode, UCD.to_tuple(version)}, %{
-        version: version,
+      DB.put(project, {:unicode, UCD.to_tuple(version)}, %{
+        value: version,
         url: Map.fetch!(github_response, "html_url"),
         created_at: created_at
       })

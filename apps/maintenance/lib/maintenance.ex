@@ -3,14 +3,17 @@ defmodule Maintenance do
 
   @app_name :maintenance
   @projects [:elixir, :otp]
+  @jobs [:unicode]
 
   @type project :: :elixir | :otp
+  @type job :: atom
 
   @moduledoc """
   Documentation for `Maintenance`.
   """
 
   defguard is_project(term) when term in @projects
+  defguard is_job(term) when term in @jobs
 
   @doc false
   def app_name(), do: @app_name
@@ -21,8 +24,8 @@ defmodule Maintenance do
   end
 
   @doc false
-  def db_path() do
-    Maintenance.app_name() |> :code.priv_dir() |> Path.join("database")
+  def db_path(project) when is_project(project) do
+    Maintenance.app_name() |> :code.priv_dir() |> Path.join("database") |> Path.join(Atom.to_string(project))
   end
 
   @doc """
@@ -57,6 +60,13 @@ defmodule Maintenance do
   def default(project, key) when is_project(project) and is_atom(key) do
     default(project) |> Map.fetch!(key)
   end
+
+  # @spec update() :: :ok
+  # def update() do
+  #   for project <- @projects do
+
+  #   end
+  # end
 
   @doc """
   Updates the Unicode in the given `project` by creating a git commit.
@@ -94,5 +104,12 @@ defmodule Maintenance do
   """
   def projects() do
     @projects
+  end
+
+  @doc """
+  List jobs
+  """
+  def jobs() do
+    @jobs
   end
 end

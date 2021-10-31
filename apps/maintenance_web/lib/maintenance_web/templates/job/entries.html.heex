@@ -1,0 +1,29 @@
+<h1>Job: <%= @job %></h1>
+
+
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>Date</th>
+      <th>URL</th>
+    </tr>
+  </thead>
+  <tbody>
+<%= for {k, v} <- @entries do %>
+    <tr>
+      <td><%= inspect(v.value) %></td>
+      <td><%= Calendar.strftime(v.created_at, "%c %Z") %></td>
+      <td>
+        <%= if v.url do
+            link(v.url, to: v.url)
+          end
+        %>
+      </td>
+    </tr>
+<% end %>
+  </tbody>
+</table>
+
+
+<span><%= link "Back", to: Routes.job_path(@conn, :show_jobs, @project) %></span>

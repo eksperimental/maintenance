@@ -167,18 +167,18 @@ defmodule Maintenance.Project do
     "unicode_#{version}"
   end
 
-  defp pr_exists?(project, key, version)
-       when is_project(project) and is_atom(key) and is_version(version) do
-    if get_unicode_db_entry(project, key, version) do
+  defp pr_exists?(project, job, version)
+       when is_project(project) and is_atom(job) and is_version(version) do
+    if get_unicode_db_entry(project, job, version) do
       true
     else
       false
     end
   end
 
-  defp pr_exists?(project, key, version)
-       when is_project(project) and is_atom(key) and is_version(version) do
-    {:ok, result} = DB.select(min_key: {:otp, :unicode, 0}, reverse: true, pipe: [take: 1])
+  defp pr_exists?(project, job, version)
+       when is_project(project) and is_atom(job) and is_version(version) do
+    {:ok, result} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [take: 1])
 
     case result do
       [{_, result}] ->
@@ -193,9 +193,9 @@ defmodule Maintenance.Project do
     end
   end
 
-  # defp get_latest_unicode_db_entry(project, key, version)
-  #      when is_project(project) and is_atom(key) and is_version(version) do
-  #   {:ok, results} = DB.select(min_key: {project, key, 0}, reverse: true, pipe: [take: 1])
+  # defp get_latest_unicode_db_entry(project, job, version)
+  #      when is_project(project) and is_atom(job) and is_version(version) do
+  #   {:ok, results} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [take: 1])
 
   #   case results do
   #     [{_, entry}] -> entry
@@ -203,8 +203,25 @@ defmodule Maintenance.Project do
   #   end
   # end
 
-  defp get_unicode_db_entry(project, key, version)
-       when is_project(project) and is_atom(key) and is_version(version) do
-    DB.get({project, key, UCD.to_tuple(version)})
+  defp get_unicode_db_entry(project, job, version)
+       when is_project(project) and is_atom(job) and is_version(version) do
+    DB.get(project, {job, UCD.to_tuple(version)})
+  end
+
+  def list_entries_by_job(project, job) when is_project(project) and is_atom(job) do
+    # {:ok, result} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [reduce: fn ])
+    {:ok, results} = DB.select(project, reverse: true)
+
+    Enum.filter(results, fn
+      {{^job, _}, _v} ->
+        true
+
+      _ ->
+        false
+    end)
+  end
+
+  def list() do
+    Maintenance.projects()
   end
 end

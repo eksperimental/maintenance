@@ -1,0 +1,41 @@
+<h1>Listing Entries</h1>
+
+<table>
+  <thead>
+    <tr>
+
+      <th>Project</th>
+      <th>Job</th>
+      <th>Value</th>
+      <th>Timestamp</th>
+      <th>URL</th>
+      <th> </th>
+    </tr>
+  </thead>
+  <tbody>
+<%= for v <- @entries do %>
+    <tr>
+      <td>
+        <%= link v.project, to: Routes.job_path(@conn, :show_jobs, v.project) %>
+      </td>
+
+      <td>
+        <%= link v.job, to: Routes.job_path(@conn, :show_entries, v.project, %{__struct__: Job, id: v.job}) %>
+      </td>
+
+      <td><%= 
+        inspect(v.entry.value)
+      %></td>
+      <td>
+        <%= if v.entry.url do
+            link(v.entry.url, to: v.entry.url)
+          end
+        %>
+      </td>
+      <td><%= if v.entry.url, do: Calendar.strftime(v.entry.created_at, "%c %Z") %></td>
+    </tr>
+<% end %>
+  </tbody>
+</table>
+
+<span><%= link "Back", to: Routes.project_path(@conn, :index) %></span>
