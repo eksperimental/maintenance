@@ -13,9 +13,11 @@ defmodule Maintenance.Application do
       # Start a worker by calling: Maintenance.Worker.start_link(arg)
       # {Maintenance.Worker, arg}
       Maintenance.DB,
-      {Task.Supervisor, name: Maintenance.TaskSupervisor}
+      {Task.Supervisor, name: Maintenance.TaskSupervisor},
+      MaintenanceJob.Scheduler
     ]
 
-    Supervisor.start_link(children, strategy: :one_for_one, name: Maintenance.Supervisor)
+    options = [strategy: :one_for_one, name: Maintenance.Supervisor]
+    Supervisor.start_link(children, options)
   end
 end

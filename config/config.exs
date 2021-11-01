@@ -55,6 +55,15 @@ config :maintenance, :git_repo_url, "https://github.com/eksperimental/maintenanc
 # config :maintenance, :author_name, "Eksperimental"
 # config :maintenance, :author_email, "eksperimental@autistici.org"
 
+runner_update = fn -> Maintenance.Runner.update() end
+
+config :maintenance, MaintenanceJob.Scheduler,
+  jobs: [
+    # Run every 8 hours (3 times a day)
+    {"@reboot", runner_update},
+    {"0 */8 * * *", runner_update}
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "env.local.exs"
