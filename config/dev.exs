@@ -66,6 +66,4 @@ config :phoenix, :plug_init_mode, :runtime
 # in production as building large stacktraces may be expensive.
 config :phoenix, :stacktrace_depth, 20
 
-config :maintenance, env: :dev
-
 # config :maintenance, Maintenance.Scheduler, debug_logging: false

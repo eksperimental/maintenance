@@ -3,7 +3,8 @@ defmodule MaintenanceJob.Unicode do
   Updates the Unicode Character Database.
   """
 
-  import Maintenance, only: [default: 2, is_project: 1]
+  import Maintenance, only: [is_project: 1]
+  import Maintenance.Project, only: [config: 2]
   alias Maintenance.{Git, DB}
 
   @behaviour MaintenanceJob
@@ -12,6 +13,8 @@ defmodule MaintenanceJob.Unicode do
   @type response :: %Finch.Response{}
   @type response_status :: pos_integer()
   @type contents :: %{required(file_name :: String.t()) => file_contents :: String.t()}
+
+  @otp_regex_gen_unicode_version ~r/(spec_version\(\)\s+->\s+\{)((?<major>\d+),(?<minor>\d+)(,(?<patch>\d+))?)(\}\.\\n)/
 
   defguard is_version(term) when is_struct(term, Version)
 
@@ -192,7 +195,7 @@ defmodule MaintenanceJob.Unicode do
         string_gen_unicode =
           File.read!(gen_unicode_path)
           |> String.replace(
-            default(:otp, :regex_gen_unicode_version),
+            @otp_regex_gen_unicode_version,
             "\\g{1}#{version.major},#{version.minor}\\g{3}"
           )
 
@@ -209,7 +212,7 @@ defmodule MaintenanceJob.Unicode do
       when is_list(tasks) do
     {:ok, _} = Git.cache_repo(project)
 
-    :ok = Git.checkout(project, default(project, :main_branch))
+    :ok = Git.checkout(project, config(project, :main_branch))
     {:ok, previous_branch} = Git.get_branch(project)
 
     new_branch = branch(version)
@@ -389,7 +392,7 @@ defmodule MaintenanceJob.Unicode do
       Req.get!(
         "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
       )
-      |> then(&Regex.named_captures(default(:otp, :regex_gen_unicode_version), &1.body))
+      |> then(&Regex.named_captures(@otp_regex_gen_unicode_version, &1.body))
 
     case result do
       %{"major" => major, "minor" => minor, "patch" => ""} ->

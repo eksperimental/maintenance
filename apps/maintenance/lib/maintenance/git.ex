@@ -3,10 +3,8 @@ defmodule Maintenance.Git do
   Module that deals with the Git commands.
   """
 
-  import Maintenance,
-    only: [is_project: 1, default: 1, default: 2, cache_path: 0, auth_url: 1, app_name: 0]
-
-  alias Maintenance.DB
+  import Maintenance, only: [is_project: 1, cache_path: 0, auth_url: 1]
+  alias Maintenance.{DB, Project}
 
   @type branch :: String.t()
 
@@ -29,10 +27,10 @@ defmodule Maintenance.Git do
   def get_last_commit_id(project) when is_project(project) do
     # live: git ls-remote https://github.com//elixir-lang/elixir refs/heads/master
 
-    default = default(project)
+    config = Project.config(project)
 
     response =
-      System.cmd("git", ~w(ls-remote #{default.git_repo_url} refs/heads/#{default.main_branch}))
+      System.cmd("git", ~w(ls-remote #{config.git_url_upstream} refs/heads/#{config.main_branch}))
 
     case response do
       {response_string, 0} ->
@@ -83,14 +81,14 @@ defmodule Maintenance.Git do
   """
   @spec create_repo(Maintenance.project()) :: :ok | :error
   def create_repo(project) when is_project(project) do
-    default = Maintenance.default(project)
+    config = Project.config(project)
 
     :ok = config(project)
 
     with {_, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{default.git_repo_url} --depth 1 --branch #{default.main_branch}),
+             ~w(clone #{config.git_url_upstream} --depth 1 --branch #{config.main_branch}),
              cd: cache_path()
            ),
          git_path <- path(project),
@@ -98,13 +96,13 @@ defmodule Maintenance.Git do
          _ <-
            System.cmd("git", ~w(remote remove upstream), cd: git_path),
          {_, 0} <-
-           System.cmd("git", ~w(remote add upstream #{auth_url(default.git_repo_url)}),
+           System.cmd("git", ~w(remote add upstream #{auth_url(config.git_url_upstream)}),
              cd: git_path
            ),
          {_, 0} <-
            System.cmd(
              "git",
-             ~w(remote add origin #{auth_url(default(project, :forked_git_repo_url))}),
+             ~w(remote add origin #{auth_url(config.git_url.origin)}),
              cd: git_path
            ) do
       :ok
@@ -244,10 +242,7 @@ defmodule Maintenance.Git do
 
   @spec push(Maintenance.project()) :: :ok | :error
   def push(project) when is_project(project) do
-    auth_url = default(project, :forked_git_repo_url) |> Maintenance.auth_url()
-
-    # IO.inspect({"git", ["push", auth_url, "HEAD", "-f"]})
-
+    auth_url = Project.config(project, :git_url_origin) |> Maintenance.auth_url()
     git_path = path(project)
 
     if shallow_repo?(git_path) do
@@ -263,9 +258,9 @@ defmodule Maintenance.Git do
 
   defp push_main_branch(project) do
     {:ok, branch} = get_branch(project)
-    checkout(project, default(project, :main_branch))
+    checkout(project, Project.config(project, :main_branch))
 
-    auth_url = default(project, :dev_git_repo_url) |> Maintenance.auth_url()
+    auth_url = Project.config(project, :git_url_origin) |> Maintenance.auth_url()
 
     with git_path <- path(project),
          _ <- System.cmd("git", ~w(pull upstream HEAD -f), cd: git_path),
@@ -290,14 +285,14 @@ defmodule Maintenance.Git do
   end
 
   def submit_pr(project, :unicode, %{version: version}) when is_project(project) do
-    if Application.get_env(app_name(), :env) == :dev do
-      push_main_branch(project)
-    end
+    # if Maintenance.env!() == :dev do
+    push_main_branch(project)
+    # end
 
     push(project)
 
     client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token()})
-    default = default(project)
+    config = Project.config(project)
     {:ok, branch} = get_branch(project)
 
     body = %{
@@ -309,12 +304,19 @@ defmodule Maintenance.Git do
       If you find any issue in this PR, please kindly report it to
       #{Maintenance.git_repo_url()}/issues
       """,
-      "head" => "eksperimental:" <> branch,
-      "base" => default.main_branch
+      "head" => config.owner_origin <> ":" <> branch,
+      "base" => config.main_branch
     }
 
+    owner =
+      if Maintenance.env!() == :prod do
+        config.owner_upstream
+      else
+        config.owner_origin
+      end
+
     {response_status, github_response, _httpoison_response} =
-      Tentacat.Pulls.create(client, default.owner, default.repo, body)
+      Tentacat.Pulls.create(client, owner, config.repo, body)
 
     # IO.inspect({response_status, github_response})
     if response_status in 200..299 do
