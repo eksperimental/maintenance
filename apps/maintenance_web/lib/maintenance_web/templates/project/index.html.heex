@@ -9,9 +9,10 @@
   <tbody>
 <%= for project <- @projects do %>
     <tr>
-      <td><%= link project, to: Routes.job_path(@conn, :show_jobs, project) %></td>
+      <td><%= link project, to: Routes.project_path(@conn, :show_jobs, project) %></td>
     </tr>
 <% end %>
   </tbody>
 </table>
 
+[ <span><%= link "View All Jobs", to: Routes.job_path(@conn, :index) %></span>]

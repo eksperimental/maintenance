@@ -27,7 +27,10 @@ defmodule Maintenance do
 
   @doc false
   def db_path(project) when is_project(project) do
-    Maintenance.app_name() |> :code.priv_dir() |> Path.join("database") |> Path.join(Atom.to_string(project))
+    Maintenance.app_name()
+    |> :code.priv_dir()
+    |> Path.join("database")
+    |> Path.join(Atom.to_string(project))
   end
 
   @doc """

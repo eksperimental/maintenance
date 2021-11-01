@@ -10,7 +10,7 @@ defmodule MaintenanceJob do
   - `{:error, term()}` - the job was failed and a term is passed with it;
   - `:not_implemented` - the job was was not executed because it is not implemented;
   """
-  @type status :: {:ok, :updated} |  {:ok, :no_update_needed} | {:error, term()} | :not_implemented
+  @type status :: {:ok, :updated} | {:ok, :no_update_needed} | {:error, term()} | :not_implemented
 
   @doc """
   Runs the job.
@@ -19,7 +19,7 @@ defmodule MaintenanceJob do
   not implemented for `project`.
   """
   @callback update(Maintenance.project()) :: status()
-  
+
   @doc """
   Return `true` when the job is implemented for `project`; otherwise `false`.
   """

@@ -193,7 +193,8 @@ defmodule Maintenance.Git do
   def commit(project, message) when is_project(project) when is_binary(message) do
     with git_path <- path(project),
          {_, 0} <- System.cmd("git", ~w(add -- .), cd: git_path),
-         {_, 0} <- System.cmd("git", ["-c", "commit.gpgsign=false", "commit", "-m", message], cd: git_path) do
+         {_, 0} <-
+           System.cmd("git", ["-c", "commit.gpgsign=false", "commit", "-m", message], cd: git_path) do
       :ok
     else
       _ -> :error

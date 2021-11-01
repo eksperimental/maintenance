@@ -1,4 +1,4 @@
-<h1>Listing Entries</h1>
+<h1>Listing all job entries</h1>
 
 <table>
   <thead>
@@ -16,11 +16,11 @@
 <%= for v <- @entries do %>
     <tr>
       <td>
-        <%= link v.project, to: Routes.job_path(@conn, :show_jobs, v.project) %>
+        <%= link v.project, to: Routes.project_path(@conn, :show_jobs, v.project) %>
       </td>
 
       <td>
-        <%= link v.job, to: Routes.job_path(@conn, :show_entries, v.project, %{__struct__: Job, id: v.job}) %>
+        <%= link v.job, to: Routes.project_path(@conn, :show_entries, v.project, %{__struct__: Job, id: v.job}) %>
       </td>
 
       <td><%= 
@@ -38,4 +38,4 @@
   </tbody>
 </table>
 
-<span><%= link "Back", to: Routes.project_path(@conn, :index) %></span>
+[ <span><%= link "Back to Projects", to: Routes.project_path(@conn, :index) %></span> ]

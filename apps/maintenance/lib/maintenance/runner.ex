@@ -8,11 +8,11 @@ defmodule Maintenance.Runner do
   @doc """
   Updates all jobs for all projects.
   """
-  @spec update() :: [{Maintenance.project, Maintenance.job, MaintenanceJob.status}]
+  @spec update() :: [{Maintenance.project(), Maintenance.job(), MaintenanceJob.status()}]
   def update() do
     for project <- Maintenance.projects(),
-      job <- Maintenance.jobs() do
-        {project, job, update(project, job)}
+        job <- Maintenance.jobs() do
+      {project, job, update(project, job)}
     end
   end
 
@@ -22,7 +22,7 @@ defmodule Maintenance.Runner do
   @spec update(Maintenance.project(), Maintenance.job()) :: MaintenanceJob.status()
   def update(project, job) when is_project(project) and is_job(job) do
     job_module = get_job_module(job)
-    
+
     if apply(job_module, :implements_project?, [project]) do
       apply(job_module, :update, [project])
     else

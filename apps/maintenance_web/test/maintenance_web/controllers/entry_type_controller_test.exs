@@ -51,7 +51,9 @@ defmodule MaintenanceWeb.JobControllerTest do
     setup [:create_entry_type]
 
     test "redirects when data is valid", %{conn: conn, entry_type: entry_type} do
-      conn = put(conn, Routes.entry_type_path(conn, :update, entry_type), entry_type: @update_attrs)
+      conn =
+        put(conn, Routes.entry_type_path(conn, :update, entry_type), entry_type: @update_attrs)
+
       assert redirected_to(conn) == Routes.entry_type_path(conn, :show, entry_type)
 
       conn = get(conn, Routes.entry_type_path(conn, :show, entry_type))
@@ -59,7 +61,9 @@ defmodule MaintenanceWeb.JobControllerTest do
     end
 
     test "renders errors when data is invalid", %{conn: conn, entry_type: entry_type} do
-      conn = put(conn, Routes.entry_type_path(conn, :update, entry_type), entry_type: @invalid_attrs)
+      conn =
+        put(conn, Routes.entry_type_path(conn, :update, entry_type), entry_type: @invalid_attrs)
+
       assert html_response(conn, 200) =~ "Edit Job"
     end
   end

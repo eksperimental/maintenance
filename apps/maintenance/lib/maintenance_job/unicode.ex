@@ -28,7 +28,7 @@ defmodule MaintenanceJob.Unicode do
   Updates the Unicode in the given `project` by creating a git commit.
   """
   @impl MaintenanceJob
-  @spec update(Maintenance.project()) :: MaintenanceJob.status
+  @spec update(Maintenance.project()) :: MaintenanceJob.status()
   def update(project) when is_project(project) do
     %{
       needs_update?: needs_update?,
@@ -83,7 +83,7 @@ defmodule MaintenanceJob.Unicode do
   end
 
   @doc false
-  @spec update(Maintenance.project(), version(), contents()) :: MaintenanceJob.status
+  @spec update(Maintenance.project(), version(), contents()) :: MaintenanceJob.status()
   def update(project = :elixir, version, contents) do
     if pr_exists?(project, :unicode, version) do
       {:ok, :no_update_needed}

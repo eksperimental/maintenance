@@ -59,19 +59,20 @@ defmodule Maintenance.DB do
     projects = Maintenance.projects()
 
     result =
-    Enum.reduce_while(projects, %{}, fn project, acc ->
-      case CubDB.start_link(data_dir: Maintenance.db_path(project)) do
-        {:ok, db} ->
-          {:cont, Map.put(acc, project, db)}
+      Enum.reduce_while(projects, %{}, fn project, acc ->
+        case CubDB.start_link(data_dir: Maintenance.db_path(project)) do
+          {:ok, db} ->
+            {:cont, Map.put(acc, project, db)}
 
-        {:error, reason} ->
-          {:halt, {:stop, reason}}
-      end
-    end)
+          {:error, reason} ->
+            {:halt, {:stop, reason}}
+        end
+      end)
 
     case result do
       {:stop, reason} ->
         {:stop, reason}
+
       _ ->
         {:ok, result}
     end
