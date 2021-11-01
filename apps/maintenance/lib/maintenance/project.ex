@@ -14,7 +14,7 @@ defmodule Maintenance.Project do
   def config(:elixir) do
     %{
       main_branch: "master",
-      owner_origin: "eksperimental-dev",
+      owner_origin: "maintenance-beam",
       owner_upstream: "elixir-lang",
       repo: "elixir"
     }
@@ -24,7 +24,7 @@ defmodule Maintenance.Project do
   def config(:otp) do
     %{
       main_branch: "master",
-      owner_origin: "eksperimental-dev",
+      owner_origin: "maintenance-beam",
       owner_upstream: "erlang",
       repo: "otp"
     }
