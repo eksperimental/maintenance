@@ -56,13 +56,11 @@ config :maintenance, :git_repo_url, "https://github.com/eksperimental/maintenanc
 # config :maintenance, :author_email, "eksperimental@autistici.org"
 
 # CRONTAB SCHEDULER
-runner_update = fn -> Maintenance.Runner.update() end
-
 config :maintenance, MaintenanceJob.Scheduler,
   jobs: [
     # Run every 8 hours (3 times a day)
-    # {"@reboot", runner_update},
-    {"0 */8 * * *", runner_update}
+    # {"@reboot", {Maintenance.Runner, :update, []}},
+    {"0 */8 * * *", {Maintenance.Runner, :update, []}}
   ]
 
 config :maintenance, env: config_env()

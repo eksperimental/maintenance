@@ -308,13 +308,12 @@ defmodule Maintenance.Git do
       "base" => config.main_branch
     }
 
-    owner =
-      # TODO: Uncomment this once uploaded
-      # if Maintenance.env!() == :prod do
-      #   config.owner_upstream
-      # else
-        config.owner_origin
-      # end
+    # TODO: Uncomment this once uploaded
+    # if Maintenance.env!() == :prod do
+    #   config.owner_upstream
+    # else
+    owner = config.owner_origin
+    # end
 
     {response_status, github_response, _httpoison_response} =
       Tentacat.Pulls.create(client, owner, config.repo, body)
