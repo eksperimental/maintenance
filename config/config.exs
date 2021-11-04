@@ -59,7 +59,7 @@ config :maintenance, :git_repo_url, "https://github.com/eksperimental/maintenanc
 config :maintenance, MaintenanceJob.Scheduler,
   jobs: [
     # Run every 8 hours (3 times a day)
-    # {"@reboot", {Maintenance.Runner, :update, []}},
+    {"@reboot", {Maintenance.Runner, :update, []}},
     {"* * * * *", {Maintenance.Runner, :update, []}},
     {"0 */8 * * *", {Maintenance.Runner, :update, []}}
   ]
