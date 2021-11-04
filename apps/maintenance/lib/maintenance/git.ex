@@ -10,7 +10,8 @@ defmodule Maintenance.Git do
 
   @doc false
   def config(project) when is_project(project) do
-    with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: path(project)),
+    with {_, 0} <- System.cmd("git", ~w(init), cd: path(project)),
+         {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: path(project)),
          {_, 0} <- System.cmd("git", ~w(config user.name Eksperimental), cd: path(project)),
          {_, 0} <-
            System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: path(project)) do
