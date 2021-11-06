@@ -24,3 +24,5 @@ erl_crash.dump
 
 # Cached static files
 /apps/maintenance_web/priv/static/
+
+/config/env.local.exs

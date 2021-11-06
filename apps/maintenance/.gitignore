@@ -28,5 +28,6 @@ maintenance-*.tar
 # Maintenance project
 /priv/cache/
 /priv/database/
+
 /config/env.local.exs
 .tool-versions
