@@ -66,7 +66,10 @@ config :maintenance, MaintenanceJob.Scheduler,
 
 config :maintenance, env: config_env()
 
+if File.exists?("env.local.exs") do
+  import_config "env.local.exs"
+end
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
-import_config "env.local.exs"
 import_config "#{config_env()}.exs"
