@@ -3,7 +3,7 @@ defmodule Maintenance.Git do
   Module that deals with the Git commands.
   """
 
-  import Maintenance, only: [is_project: 1, cache_path: 0, auth_url: 1]
+  import Maintenance, only: [is_project: 1, cache_path: 0]
   alias Maintenance.{DB, Project}
 
   @type branch :: String.t()
@@ -13,9 +13,9 @@ defmodule Maintenance.Git do
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
-    with {_, 0} <- System.cmd("git", ~w(init), cd: repo_path),
-         {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
+    with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
          {_, 0} <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
+         {_, 0} <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
          {_, 0} <-
            System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path) do
       :ok
@@ -92,23 +92,23 @@ defmodule Maintenance.Git do
     with {_, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{config.git_url_upstream} --depth 1 --branch #{config.main_branch}),
-             cd: cache_path()
+             ~w(clone #{config.git_url_upstream} --depth 1 --branch #{config.main_branch} #{path(project)})
            ),
          git_path <- path(project),
-         System.cmd("git", ~w(remote remove origin), cd: git_path),
-         _ <-
-           System.cmd("git", ~w(remote remove upstream), cd: git_path),
-         {_, 0} <-
-           System.cmd("git", ~w(remote add upstream #{auth_url(config.git_url_upstream)}),
-             cd: git_path
-           ),
+         {_, 0} <- System.cmd("git", ~w(remote remove origin), cd: git_path),
          {_, 0} <-
            System.cmd(
              "git",
-             ~w(remote add origin #{auth_url(config.git_url.origin)}),
+             ~w(remote add origin #{config.git_url_origin}),
              cd: git_path
-           ) do
+           ),
+         {_, 0} <-
+           System.cmd("git", ~w(remote remove upstream), cd: git_path),
+         {_, 0} <-
+
+
+         # System.cmd("git", ~w(remote add upstream #{auth_url(config.git_url_upstream)}),
+           System.cmd("git", ~w(remote add upstream #{config.git_url_upstream}), cd: git_path) do
       :ok
     else
       _ -> :error
@@ -161,8 +161,11 @@ defmodule Maintenance.Git do
     # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/master
     # cached: git rev-parse refs/heads/master
 
+    config = Project.config(project)
+
     if repo?(path(project)) do
-      response = System.cmd("git", ~w(rev-parse refs/heads/master), cd: path(project))
+      response =
+        System.cmd("git", ~w(rev-parse refs/heads/#{config.main_branch}), cd: path(project))
 
       case response do
         {commit_id, 0} -> {:ok, String.trim(commit_id)}
@@ -260,14 +263,30 @@ defmodule Maintenance.Git do
     end
   end
 
+  @spec add(Maintenance.project(), binary | [binary]) :: :ok | :error
+  def add(project, file_or_list_of_files)
+
+  def add(project, file) when is_project(project) and is_binary(file),
+    do: add(project, [file])
+
+  def add(project, files) when is_project(project) and is_list(files) do
+    git_path = path(project)
+
+    case System.cmd("git", List.flatten(["add", files]), cd: git_path) do
+      {_, 0} -> :ok
+      _ -> :error
+    end
+  end
+
   defp push_main_branch(project) do
     {:ok, branch} = get_branch(project)
-    checkout(project, Project.config(project, :main_branch))
+    config = Project.config(project)
+    checkout(project, config.main_branch)
 
     auth_url = Project.config(project, :git_url_origin) |> Maintenance.auth_url()
 
     with git_path <- path(project),
-         _ <- System.cmd("git", ~w(pull upstream HEAD -f), cd: git_path),
+         _ <- System.cmd("git", ~w(pull upstream #{config.main_branch} --rebase), cd: git_path),
          {_, 0} <- System.cmd("git", ["push", auth_url, "HEAD", "-f"], cd: git_path) do
       checkout(project, branch)
       :ok
@@ -278,7 +297,7 @@ defmodule Maintenance.Git do
     end
   end
 
-  @spec delete_branch(Maintenance.project(), branch) :: :ok | :error
+  @spec delete_branch(Maintenance.project(), branch) :: :ok | {:error, map}
   def delete_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
          {_, 0} <- System.cmd("git", ["branch", "-D", branch], cd: git_path) do
@@ -288,7 +307,10 @@ defmodule Maintenance.Git do
     end
   end
 
-  def submit_pr(project, :unicode, %{version: version}) when is_project(project) do
+  @spec submit_pr(Maintenance.project(), Maintenance.job(), map) :: :ok | {:error}
+  def submit_pr(project, job, data = %{title: title, db_key: db_key, db_value: db_value})
+      when is_project(project)
+      when is_atom(job) and is_map(data) do
     # if Maintenance.env!() == :dev do
     push_main_branch(project)
     # end
@@ -300,16 +322,17 @@ defmodule Maintenance.Git do
     {:ok, branch} = get_branch(project)
 
     body = %{
-      "title" => "Update Unicode to #{version}",
-      "body" => """
-      This is an automated commit generated by the Maintenance project.
-      #{Maintenance.git_repo_url()}
+      "title" => title,
+      "body" =>
+        Map.get(data, :body, """
+        This is an automated commit generated by the Maintenance project.
+        #{Maintenance.git_repo_url()}
 
-      If you find any issue in this PR, please kindly report it to
-      #{Maintenance.git_repo_url()}/issues
-      """,
-      "head" => config.owner_origin <> ":" <> branch,
-      "base" => config.main_branch
+        If you find any issue in this PR, please kindly report it to
+        #{Maintenance.git_repo_url()}/issues
+        """),
+      "head" => Map.get(data, :head, config.owner_origin <> ":" <> branch),
+      "base" => Map.get(data, :base, config.main_branch)
     }
 
     # TODO: Uncomment this once uploaded
@@ -322,13 +345,12 @@ defmodule Maintenance.Git do
     {response_status, github_response, _httpoison_response} =
       Tentacat.Pulls.create(client, owner, config.repo, body)
 
-    # IO.inspect({response_status, github_response})
     if response_status in 200..299 do
       {:ok, created_at, _offset} =
         Map.fetch!(github_response, "created_at") |> DateTime.from_iso8601()
 
-      DB.put(project, {:unicode, MaintenanceJob.Unicode.to_tuple(version)}, %{
-        value: version,
+      DB.put(project, db_key, %{
+        value: db_value,
         url: Map.fetch!(github_response, "html_url"),
         created_at: created_at
       })

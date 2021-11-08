@@ -1,10 +1,10 @@
 defmodule Maintenance do
   @app_name :maintenance
 
-  @projects [:elixir, :otp]
-  @jobs [:unicode]
+  @projects [:sample_project, :elixir, :otp]
+  @jobs [:sample_job, :unicode]
 
-  @type project :: :elixir | :otp
+  @type project :: :elixir | :otp | :sample_project
   @type job :: atom
 
   @moduledoc """
@@ -35,7 +35,13 @@ defmodule Maintenance do
 
   @doc false
   def github_access_token() do
-    Application.fetch_env!(@app_name, :github_access_token)
+    case Application.fetch_env(@app_name, :github_access_token) do
+      {:ok, github_access_token} ->
+        github_access_token
+
+      :error ->
+        System.fetch_env!("GITHUB_ACCESS_TOKEN")
+    end
   end
 
   @doc false

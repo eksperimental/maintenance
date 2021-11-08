@@ -4,7 +4,7 @@ defmodule MaintenanceJob.Unicode do
   """
 
   import Maintenance, only: [is_project: 1]
-  import Maintenance.Project, only: [config: 2]
+  import Maintenance.Project, only: [config: 1]
   alias Maintenance.{Git, DB}
 
   @behaviour MaintenanceJob
@@ -212,7 +212,9 @@ defmodule MaintenanceJob.Unicode do
       when is_list(tasks) do
     {:ok, _} = Git.cache_repo(project)
 
-    :ok = Git.checkout(project, config(project, :main_branch))
+    config = config(project)
+
+    :ok = Git.checkout(project, config.main_branch)
     {:ok, previous_branch} = Git.get_branch(project)
 
     new_branch = branch(version)
@@ -224,12 +226,19 @@ defmodule MaintenanceJob.Unicode do
     :ok = Git.checkout_new_branch(project, new_branch)
 
     tasks
-    |> Task.async_stream(& &1.())
+    |> Task.async_stream(& &1.(), timeout: :infinity)
     |> Stream.run()
 
     # Commit
     :ok = Git.commit(project, commit_msg(version))
-    :ok = Git.submit_pr(project, :unicode, %{version: version})
+
+    data = %{
+      title: "Update Unicode to #{version}",
+      db_key: {:unicode, MaintenanceJob.Unicode.to_tuple(version)},
+      db_value: version
+    }
+
+    :ok = Git.submit_pr(project, :unicode, data)
     :ok = Git.checkout(project, previous_branch)
 
     {:ok, :updated}
@@ -273,16 +282,6 @@ defmodule MaintenanceJob.Unicode do
         false
     end
   end
-
-  # defp get_latest_unicode_db_entry(project, job, version)
-  #      when is_project(project) and is_atom(job) and is_version(version) do
-  #   {:ok, results} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [take: 1])
-
-  #   case results do
-  #     [{_, entry}] -> entry
-  #     [] -> nil
-  #   end
-  # end
 
   defp get_unicode_db_entry(project, job, version)
        when is_project(project) and is_atom(job) and is_version(version) do

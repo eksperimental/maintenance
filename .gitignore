@@ -26,3 +26,4 @@ erl_crash.dump
 /apps/maintenance_web/priv/static/
 
 /config/env.local.exs
+/setup_envs.sh

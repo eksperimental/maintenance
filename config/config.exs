@@ -55,6 +55,9 @@ config :maintenance, :git_repo_url, "https://github.com/eksperimental/maintenanc
 # config :maintenance, :author_name, "Eksperimental"
 # config :maintenance, :author_email, "eksperimental@autistici.org"
 
+config :maintenance,
+  github_account: "maintenance-beam-app"
+
 # CRONTAB SCHEDULER
 config :maintenance, MaintenanceJob.Scheduler,
   jobs: [
