@@ -13,17 +13,26 @@ defmodule Maintenance.Git do
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
-    with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
-         {_, 0} <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
-         {_, 0} <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
-         {_, 0} <- System.cmd("git", ~w(config --global fetch.fsckobjects true)),
-         {_, 0} <- System.cmd("git", ~w(config --global transfer.fsckobjects true)),
-         {_, 0} <- System.cmd("git", ~w(config --global receive.fsckobjects true)),
-         {_, 0} <-
-           System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path) do
+    with {_, last_exit_code} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
+          IO.inspect({__ENV__.line, last_exit_code}),
+         {_, last_exit_code} <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
+         IO.inspect({__ENV__.line, last_exit_code}),
+         {_, last_exit_code} <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
+         IO.inspect({__ENV__.line, last_exit_code}),
+         {_, last_exit_code} <- System.cmd("git", ~w(config fetch.fsckobjects true)),
+         IO.inspect({__ENV__.line, last_exit_code}),
+         {_, last_exit_code} <- System.cmd("git", ~w(config transfer.fsckobjects true)),
+         IO.inspect({__ENV__.line, last_exit_code}),
+         {_, last_exit_code} <- System.cmd("git", ~w(config receive.fsckobjects true)),
+         IO.inspect({__ENV__.line, last_exit_code}),
+         {_, last_exit_code} <-
+           System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path),
+           IO.inspect({__ENV__.line, last_exit_code}) do
       :ok
     else
-      _ -> :error
+      x ->
+        IO.inspect(x)
+        :error
     end
   end
 
@@ -280,7 +289,7 @@ defmodule Maintenance.Git do
   def push_shallow(project, remote, remote_branch, remote_url, local_branch)
     when is_project(project) and is_binary(remote) and is_binary(remote_branch) and is_binary(remote_url) and is_binary(local_branch) do
     with git_path <- path(project),
-         {_, 0} <- System.cmd("git", ~w(push ./.git +#{local_branch}:refs/remotes/#{remote}/#{remote_branch}), cd: git_path) do
+         {_, 0} <- System.cmd("git", ~w(push .git +#{local_branch}:refs/remotes/#{remote}/#{remote_branch}), cd: git_path) do
       :ok
     else
       _ ->
