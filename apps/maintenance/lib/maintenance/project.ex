@@ -31,6 +31,16 @@ defmodule Maintenance.Project do
     |> build_config()
   end
 
+  def config(:sample_project) do
+    %{
+      main_branch: "main",
+      owner_origin: "maintenance-beam",
+      owner_upstream: "maintenance-beam-app",
+      repo: "buildable"
+    }
+    |> build_config()
+  end
+
   def config(project, key) when is_project(project) and is_atom(key) do
     config(project) |> Map.fetch!(key)
   end
