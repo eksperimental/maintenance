@@ -16,6 +16,9 @@ defmodule Maintenance.Git do
     with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
          {_, 0} <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
          {_, 0} <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
+         {_, 0} <- System.cmd("git", ~w(config --global fetch.fsckobjects true)),
+         {_, 0} <- System.cmd("git", ~w(config --global transfer.fsckobjects true)),
+         {_, 0} <- System.cmd("git", ~w(config --global receive.fsckobjects true)),
          {_, 0} <-
            System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path) do
       :ok
@@ -61,9 +64,8 @@ defmodule Maintenance.Git do
   """
   @spec cache_repo(Maintenance.project()) :: {:ok, %{cached?: boolean}}
   def cache_repo(project) when is_project(project) do
-    {:ok, last_commit_id} = get_last_commit_id(project)
-
     File.mkdir_p!(path(project))
+    {:ok, last_commit_id} = get_last_commit_id(project)
 
     case get_last_cached_commit_id(project) do
       {:ok, ^last_commit_id} ->
@@ -102,12 +104,9 @@ defmodule Maintenance.Git do
              ~w(remote add origin #{config.git_url_origin}),
              cd: git_path
            ),
-         {_, 0} <-
+         _ <-
            System.cmd("git", ~w(remote remove upstream), cd: git_path),
          {_, 0} <-
-
-
-         # System.cmd("git", ~w(remote add upstream #{auth_url(config.git_url_upstream)}),
            System.cmd("git", ~w(remote add upstream #{config.git_url_upstream}), cd: git_path) do
       :ok
     else
@@ -124,15 +123,17 @@ defmodule Maintenance.Git do
     :ok = File.mkdir_p!(git_path)
 
     if shallow_repo?(git_path) do
-      update_repo_shallow(project, git_path)
+      update_repo_shallow(project, "origin")
     else
-      update_repo_regular(project, git_path)
+      update_repo_regular(project, "upstream")
     end
   end
 
-  def update_repo_regular(project, git_path) do
+  def update_repo_regular(project, remote) do
+    git_path = path(project)
+
     with :ok <- config(project),
-         {_, 0} <- System.cmd("git", ~w(pull upstream HEAD -f), cd: git_path) do
+         {_, 0} <- System.cmd("git", ~w(pull #{remote} HEAD -f), cd: git_path) do
       :ok
     else
       _ ->
@@ -141,10 +142,13 @@ defmodule Maintenance.Git do
   end
 
   # https://stackoverflow.com/questions/41075972/how-to-update-a-git-shallow-clone
-  defp update_repo_shallow(project, git_path) do
+  defp update_repo_shallow(project, remote) do
+    config = Project.config(project)
+    git_path = path(project)
+
     with :ok <- config(project),
          {_, 0} <- System.cmd("git", ~w(fetch --depth 1), cd: git_path),
-         {_, 0} <- System.cmd("git", ~w(reset --hard origin/master), cd: git_path),
+         {_, 0} <- System.cmd("git", ~w(reset --hard #{remote}/#{config.main_branch}), cd: git_path),
          {_, 0} <- System.cmd("git", ~w(clean -dfx), cd: git_path) do
       :ok
     else
@@ -247,19 +251,40 @@ defmodule Maintenance.Git do
     end
   end
 
-  @spec push(Maintenance.project()) :: :ok | :error
-  def push(project) when is_project(project) do
-    auth_url = Project.config(project, :git_url_origin) |> Maintenance.auth_url()
+  @spec push_repo(Maintenance.project(), map) :: :ok | :error
+  def push_repo(project, config) when is_project(project) and is_map(config) do
     git_path = path(project)
 
     if shallow_repo?(git_path) do
-      System.cmd("git", ~w(pull --unshallow upstream), cd: git_path)
-      System.cmd("git", ~w(pull upstream HEAD), cd: git_path)
-    end
+      # push main branch
+      :ok = push_shallow(project, "origin", config.main_branch, config.git_url_origin, config.main_branch)
 
-    case System.cmd("git", ["push", auth_url, "HEAD", "-f"], cd: git_path) do
+      # push upstream
+      :ok = push_shallow(project, "upstream", config.main_branch, config.git_url_upstream, config.main_branch)
+    else
+      :ok = push(project, config.git_url_upstream)
+    end
+  end
+
+  @spec push(Maintenance.project(), String.t()) :: :ok | :error
+  def push(project, remote_url) when is_project(project) and is_binary(remote_url) do
+    auth_url = Maintenance.auth_url(remote_url)
+    case System.cmd("git", ["push", auth_url, "HEAD", "-f"], cd: path(project)) do
       {_, 0} -> :ok
       _ -> :error
+    end
+  end
+
+  # Extracted from: https://github.com/wtsos/learngit/blob/2baa66d462d454ced5d6aa56e93618f0244d0d45/t/t5538-push-shallow.sh
+  @spec push_shallow(Maintenance.project(), String.t(), String.t(), String.t(), String.t()) :: :ok | :error
+  def push_shallow(project, remote, remote_branch, remote_url, local_branch)
+    when is_project(project) and is_binary(remote) and is_binary(remote_branch) and is_binary(remote_url) and is_binary(local_branch) do
+    with git_path <- path(project),
+         {_, 0} <- System.cmd("git", ~w(push ./.git +#{local_branch}:refs/remotes/#{remote}/#{remote_branch}), cd: git_path) do
+      :ok
+    else
+      _ ->
+        :error
     end
   end
 
@@ -278,25 +303,6 @@ defmodule Maintenance.Git do
     end
   end
 
-  defp push_main_branch(project) do
-    {:ok, branch} = get_branch(project)
-    config = Project.config(project)
-    checkout(project, config.main_branch)
-
-    auth_url = Project.config(project, :git_url_origin) |> Maintenance.auth_url()
-
-    with git_path <- path(project),
-         _ <- System.cmd("git", ~w(pull upstream #{config.main_branch} --rebase), cd: git_path),
-         {_, 0} <- System.cmd("git", ["push", auth_url, "HEAD", "-f"], cd: git_path) do
-      checkout(project, branch)
-      :ok
-    else
-      _ ->
-        checkout(project, branch)
-        :error
-    end
-  end
-
   @spec delete_branch(Maintenance.project(), branch) :: :ok | {:error, map}
   def delete_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
@@ -310,15 +316,11 @@ defmodule Maintenance.Git do
   @spec submit_pr(Maintenance.project(), Maintenance.job(), map) :: :ok | {:error}
   def submit_pr(project, job, data = %{title: title, db_key: db_key, db_value: db_value})
       when is_project(project)
-      when is_atom(job) and is_map(data) do
-    # if Maintenance.env!() == :dev do
-    push_main_branch(project)
-    # end
-
-    push(project)
+      and is_atom(job) and is_map(data) do
+    config = Project.config(project)
+    :ok = push_repo(project, config) 
 
     client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token()})
-    config = Project.config(project)
     {:ok, branch} = get_branch(project)
 
     body = %{

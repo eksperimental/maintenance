@@ -69,6 +69,9 @@ defmodule Maintenance.Project do
       {{^job, _}, _v} ->
         true
 
+      {^job, _v} ->
+        true
+
       _ ->
         false
     end)
