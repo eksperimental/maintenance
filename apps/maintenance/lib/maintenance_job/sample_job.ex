@@ -82,10 +82,10 @@ defmodule MaintenanceJob.SampleJob do
     |> Stream.run()
 
     # Commit
-    :ok = Git.commit(project, "Add `foo` file")
+    :ok = Git.commit(project, "Add foo file")
 
     data = %{
-      title: "Add `foo` file",
+      title: "Add foo file",
       db_key: @job,
       db_value: true,
     }
