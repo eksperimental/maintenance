@@ -13,25 +13,16 @@ defmodule Maintenance.Git do
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
-    with {_, last_exit_code} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
-          IO.inspect({__ENV__.line, last_exit_code}),
-         {_, last_exit_code} <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
-         IO.inspect({__ENV__.line, last_exit_code}),
-         {_, last_exit_code} <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
-         IO.inspect({__ENV__.line, last_exit_code}),
-         {_, last_exit_code} <- System.cmd("git", ~w(config fetch.fsckobjects true)),
-         IO.inspect({__ENV__.line, last_exit_code}),
-         {_, last_exit_code} <- System.cmd("git", ~w(config transfer.fsckobjects true)),
-         IO.inspect({__ENV__.line, last_exit_code}),
-         {_, last_exit_code} <- System.cmd("git", ~w(config receive.fsckobjects true)),
-         IO.inspect({__ENV__.line, last_exit_code}),
-         {_, last_exit_code} <-
-           System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path),
-           IO.inspect({__ENV__.line, last_exit_code}) do
+    with _ <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
+         _ <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
+         _ <- System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path),
+         _ <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
+         _ <- System.cmd("git", ~w(config fetch.fsckobjects true)),
+         _ <- System.cmd("git", ~w(config transfer.fsckobjects true)),
+         _ <- System.cmd("git", ~w(config receive.fsckobjects true)) do
       :ok
     else
-      x ->
-        IO.inspect(x)
+      _ ->
         :error
     end
   end
