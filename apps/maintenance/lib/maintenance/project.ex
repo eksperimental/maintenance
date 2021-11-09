@@ -13,7 +13,7 @@ defmodule Maintenance.Project do
 
   def config(:elixir) do
     %{
-      main_branch: "master",
+      main_branch: "main",
       owner_origin: "maintenance-beam",
       owner_upstream: "elixir-lang",
       repo: "elixir"

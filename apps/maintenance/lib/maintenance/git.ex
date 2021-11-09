@@ -41,7 +41,7 @@ defmodule Maintenance.Git do
   """
   @spec get_last_commit_id(Maintenance.project()) :: {:ok, String.t()} | :error
   def get_last_commit_id(project) when is_project(project) do
-    # live: git ls-remote https://github.com//elixir-lang/elixir refs/heads/master
+    # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
 
     config = Project.config(project)
 
@@ -171,8 +171,8 @@ defmodule Maintenance.Git do
   """
   @spec get_last_cached_commit_id(Maintenance.project()) :: {:ok, String.t() | nil} | :error
   def get_last_cached_commit_id(project) when is_project(project) do
-    # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/master
-    # cached: git rev-parse refs/heads/master
+    # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
+    # cached: git rev-parse refs/heads/main
 
     config = Project.config(project)
 
