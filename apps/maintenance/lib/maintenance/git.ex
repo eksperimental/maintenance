@@ -13,7 +13,7 @@ defmodule Maintenance.Git do
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
-    with _ <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
+    with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
          _ <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
          _ <- System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path),
          _ <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),

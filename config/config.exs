@@ -61,9 +61,10 @@ config :maintenance,
 # CRONTAB SCHEDULER
 config :maintenance, MaintenanceJob.Scheduler,
   jobs: [
-    {"@reboot", {Maintenance.Runner, :update, []}},
+    # {"@reboot", {Maintenance.Runner, :update, []}},
+    {"@reboot", {Maintenance.Runner, :update, [:sample_project, :sample_job]}},
     # Run every 8 hours
-    {"0 */8 * * *", {Maintenance.Runner, :update, []}}
+    # {"0 */8 * * *", {Maintenance.Runner, :update, []}}
   ]
 
 config :maintenance, env: config_env()
