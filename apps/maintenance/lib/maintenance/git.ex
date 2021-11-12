@@ -17,9 +17,9 @@ defmodule Maintenance.Git do
          _ <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
          _ <- System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path),
          _ <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
-         _ <- System.cmd("git", ~w(config fetch.fsckobjects true)),
-         _ <- System.cmd("git", ~w(config transfer.fsckobjects true)),
-         _ <- System.cmd("git", ~w(config receive.fsckobjects true)) do
+         _ <- System.cmd("git", ~w(config fetch.fsckobjects true), cd: repo_path),
+         _ <- System.cmd("git", ~w(config transfer.fsckobjects true), cd: repo_path),
+         _ <- System.cmd("git", ~w(config receive.fsckobjects true), cd: repo_path) do
       :ok
     else
       _ ->
@@ -89,13 +89,12 @@ defmodule Maintenance.Git do
   def create_repo(project) when is_project(project) do
     config = Project.config(project)
 
-    :ok = config(project)
-
     with {_, 0} <-
            System.cmd(
              "git",
              ~w(clone #{config.git_url_upstream} --depth 1 --branch #{config.main_branch} #{path(project)})
            ),
+         :ok <- config(project),
          git_path <- path(project),
          {_, 0} <- System.cmd("git", ~w(remote remove origin), cd: git_path),
          {_, 0} <-
@@ -104,8 +103,8 @@ defmodule Maintenance.Git do
              ~w(remote add origin #{config.git_url_origin}),
              cd: git_path
            ),
-         _ <-
-           System.cmd("git", ~w(remote remove upstream), cd: git_path),
+         # _ <-
+         #   System.cmd("git", ~w(remote remove upstream), cd: git_path),
          {_, 0} <-
            System.cmd("git", ~w(remote add upstream #{config.git_url_upstream}), cd: git_path) do
       :ok
