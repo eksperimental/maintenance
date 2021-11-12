@@ -20,7 +20,7 @@ defmodule MaintenanceJob.SampleJob do
   # Callbacks
 
   @impl MaintenanceJob
-  @spec job() :: Maintenance.job
+  @spec job() :: Maintenance.job()
   def job(), do: @job
 
   @impl MaintenanceJob
@@ -91,7 +91,7 @@ defmodule MaintenanceJob.SampleJob do
     data = %{
       title: "Add foo file",
       db_key: @job,
-      db_value: true,
+      db_value: true
     }
 
     :ok = Git.submit_pr(project, @job, data)

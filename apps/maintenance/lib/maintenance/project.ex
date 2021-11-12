@@ -14,14 +14,12 @@ defmodule Maintenance.Project do
       owner_upstream: "elixir-lang",
       repo: "elixir"
     },
-
     otp: %{
       main_branch: "master",
       owner_origin: "maintenance-beam",
       owner_upstream: "erlang",
       repo: "otp"
     },
-
     sample_project: %{
       main_branch: "main",
       owner_origin: "maintenance-beam",
@@ -34,12 +32,12 @@ defmodule Maintenance.Project do
 
   defguardp is_project(term) when term in @projects
 
-  build_config = fn(%{
-     main_branch: main_branch,
-     owner_origin: owner_origin,
-     owner_upstream: owner_upstream,
-     repo: repo
-    }) ->
+  build_config = fn %{
+                      main_branch: main_branch,
+                      owner_origin: owner_origin,
+                      owner_upstream: owner_upstream,
+                      repo: repo
+                    } ->
     %{
       main_branch: main_branch,
       owner_origin: owner_origin,
@@ -57,6 +55,7 @@ defmodule Maintenance.Project do
 
   for {project, config} <- @project_configs do
     result = config |> build_config.() |> Macro.escape()
+
     def config(unquote(project)) do
       unquote(result)
     end

@@ -147,7 +147,8 @@ defmodule Maintenance.Git do
 
     with :ok <- config(project),
          {_, 0} <- System.cmd("git", ~w(fetch --depth 1), cd: git_path),
-         {_, 0} <- System.cmd("git", ~w(reset --hard #{remote}/#{config.main_branch}), cd: git_path),
+         {_, 0} <-
+           System.cmd("git", ~w(reset --hard #{remote}/#{config.main_branch}), cd: git_path),
          {_, 0} <- System.cmd("git", ~w(clean -dfx), cd: git_path) do
       :ok
     else
@@ -256,10 +257,24 @@ defmodule Maintenance.Git do
 
     if shallow_repo?(git_path) do
       # push main branch
-      :ok = push_shallow(project, "origin", config.main_branch, config.git_url_origin, config.main_branch)
+      :ok =
+        push_shallow(
+          project,
+          "origin",
+          config.main_branch,
+          config.git_url_origin,
+          config.main_branch
+        )
 
       # push upstream
-      :ok = push_shallow(project, "upstream", config.main_branch, config.git_url_upstream, config.main_branch)
+      :ok =
+        push_shallow(
+          project,
+          "upstream",
+          config.main_branch,
+          config.git_url_upstream,
+          config.main_branch
+        )
     else
       :ok = push(project, config.git_url_upstream)
     end
@@ -268,6 +283,7 @@ defmodule Maintenance.Git do
   @spec push(Maintenance.project(), String.t()) :: :ok | :error
   def push(project, remote_url) when is_project(project) and is_binary(remote_url) do
     auth_url = Maintenance.auth_url(remote_url)
+
     case System.cmd("git", ["push", auth_url, "HEAD", "-f"], cd: path(project)) do
       {_, 0} -> :ok
       _ -> :error
@@ -275,11 +291,18 @@ defmodule Maintenance.Git do
   end
 
   # Extracted from: https://github.com/wtsos/learngit/blob/2baa66d462d454ced5d6aa56e93618f0244d0d45/t/t5538-push-shallow.sh
-  @spec push_shallow(Maintenance.project(), String.t(), String.t(), String.t(), String.t()) :: :ok | :error
+  @spec push_shallow(Maintenance.project(), String.t(), String.t(), String.t(), String.t()) ::
+          :ok | :error
   def push_shallow(project, remote, remote_branch, remote_url, local_branch)
-    when is_project(project) and is_binary(remote) and is_binary(remote_branch) and is_binary(remote_url) and is_binary(local_branch) do
+      when is_project(project) and is_binary(remote) and is_binary(remote_branch) and
+             is_binary(remote_url) and is_binary(local_branch) do
     with git_path <- path(project),
-         {_, 0} <- System.cmd("git", ~w(push ./.git +#{local_branch}:refs/remotes/#{remote}/#{remote_branch}), cd: git_path) do
+         {_, 0} <-
+           System.cmd(
+             "git",
+             ~w(push ./.git +#{local_branch}:refs/remotes/#{remote}/#{remote_branch}),
+             cd: git_path
+           ) do
       :ok
     else
       _ ->
@@ -314,10 +337,10 @@ defmodule Maintenance.Git do
 
   @spec submit_pr(Maintenance.project(), Maintenance.job(), map) :: :ok | {:error}
   def submit_pr(project, job, data = %{title: title, db_key: db_key, db_value: db_value})
-      when is_project(project)
-      and is_atom(job) and is_map(data) do
+      when is_project(project) and
+             is_atom(job) and is_map(data) do
     config = Project.config(project)
-    :ok = push_repo(project, config) 
+    :ok = push_repo(project, config)
 
     client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token()})
     {:ok, branch} = get_branch(project)

@@ -66,11 +66,12 @@ defmodule Maintenance do
   def jobs(project) when is_project(project) do
     with {:ok, modules} <- :application.get_key(:maintenance, :modules) do
       Enum.reduce(modules, [], fn module, acc ->
-        with behaviours <- (module.module_info(:attributes) |> Keyword.get_values(:behaviour) |> List.flatten()),
-          true <- MaintenanceJob in behaviours,
-          true <- apply(module, :implements_project?, [project]),
-          job <- apply(module, :job, []) do
-            [job | acc]
+        with behaviours <-
+               module.module_info(:attributes) |> Keyword.get_values(:behaviour) |> List.flatten(),
+             true <- MaintenanceJob in behaviours,
+             true <- apply(module, :implements_project?, [project]),
+             job <- apply(module, :job, []) do
+          [job | acc]
         else
           _ -> acc
         end
