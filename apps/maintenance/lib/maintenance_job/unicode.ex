@@ -14,12 +14,17 @@ defmodule MaintenanceJob.Unicode do
   @type response_status :: pos_integer()
   @type contents :: %{required(file_name :: String.t()) => file_contents :: String.t()}
 
+  @job :unicode
   @otp_regex_gen_unicode_version ~r/(spec_version\(\)\s+->\s+\{)((?<major>\d+),(?<minor>\d+)(,(?<patch>\d+))?)(\}\.\\n)/
 
   defguard is_version(term) when is_struct(term, Version)
 
   #############################
   # Callbacks
+
+  @impl MaintenanceJob
+  @spec job() :: MaintenanceJob.t()
+  def job(), do: @job
 
   @impl MaintenanceJob
   @spec implements_project?(atom) :: boolean

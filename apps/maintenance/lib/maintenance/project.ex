@@ -4,53 +4,42 @@ defmodule Maintenance.Project do
   """
 
   alias Maintenance.DB
-  import Maintenance, only: [is_project: 1]
 
-  @doc """
-  Returns the configuration key-values for `project`.
-  """
-  def config(project)
-
-  def config(:elixir) do
-    %{
+  # Add new projects here
+  @type t :: :sample_project | :elixir | :otp
+  @project_configs %{
+    elixir: %{
       main_branch: "main",
       owner_origin: "maintenance-beam",
       owner_upstream: "elixir-lang",
       repo: "elixir"
-    }
-    |> build_config()
-  end
+    },
 
-  def config(:otp) do
-    %{
+    otp: %{
       main_branch: "master",
       owner_origin: "maintenance-beam",
       owner_upstream: "erlang",
       repo: "otp"
-    }
-    |> build_config()
-  end
+    },
 
-  def config(:sample_project) do
-    %{
+    sample_project: %{
       main_branch: "main",
       owner_origin: "maintenance-beam",
       owner_upstream: "maintenance-beam-app",
       repo: "buildable"
     }
-    |> build_config()
-  end
+  }
 
-  def config(project, key) when is_project(project) and is_atom(key) do
-    config(project) |> Map.fetch!(key)
-  end
+  @projects Map.keys(@project_configs)
 
-  defp build_config(%{
-         main_branch: main_branch,
-         owner_origin: owner_origin,
-         owner_upstream: owner_upstream,
-         repo: repo
-       }) do
+  defguardp is_project(term) when term in @projects
+
+  build_config = fn(%{
+     main_branch: main_branch,
+     owner_origin: owner_origin,
+     owner_upstream: owner_upstream,
+     repo: repo
+    }) ->
     %{
       main_branch: main_branch,
       owner_origin: owner_origin,
@@ -59,6 +48,22 @@ defmodule Maintenance.Project do
       git_url_upstream: "https://github.com/#{owner_upstream}/#{repo}",
       git_url_origin: "https://github.com/#{owner_origin}/#{repo}"
     }
+  end
+
+  @doc """
+  Returns the configuration key-values for `project`.
+  """
+  def config(project)
+
+  for {project, config} <- @project_configs do
+    result = config |> build_config.() |> Macro.escape()
+    def config(unquote(project)) do
+      unquote(result)
+    end
+  end
+
+  def config(project, key) when is_project(project) and is_atom(key) do
+    config(project) |> Map.fetch!(key)
   end
 
   def list_entries_by_job(project, job) when is_project(project) and is_atom(job) do
@@ -77,7 +82,5 @@ defmodule Maintenance.Project do
     end)
   end
 
-  def list() do
-    Maintenance.projects()
-  end
+  def list(), do: @projects
 end

@@ -11,7 +11,7 @@ defmodule Maintenance.Runner do
   @spec update() :: [{Maintenance.project(), Maintenance.job(), MaintenanceJob.status()}]
   def update() do
     for project <- Maintenance.projects(),
-        job <- Maintenance.jobs() do
+        job <- Maintenance.jobs(project) do
       {project, job, update(project, job)}
     end
   end

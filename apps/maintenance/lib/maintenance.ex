@@ -1,19 +1,21 @@
 defmodule Maintenance do
+  require Application
+
   @app_name :maintenance
+  # TODO: replace bellow :maintenance with @app when minimum required Elixir version fixes this
   @git_repo_url Application.compile_env(:maintenance, :git_repo_url)
 
-  @projects [:sample_project, :elixir, :otp]
-  @jobs [:sample_job, :unicode]
+  @projects Maintenance.Project.list()
 
-  @type project :: :elixir | :otp | :sample_project
-  @type job :: atom
+  @type project :: Maintenance.Project.t()
+  @type job :: MaintenanceJob.t()
 
   @moduledoc """
   Documentation for `Maintenance`.
   """
 
   defguard is_project(term) when term in @projects
-  defguard is_job(term) when term in @jobs
+  defguard is_job(term) when is_atom(term)
 
   @doc false
   def app_name(), do: @app_name
@@ -54,15 +56,26 @@ defmodule Maintenance do
   @doc """
   List projects
   """
-  def projects() do
-    @projects
-  end
+  @spec projects() :: nonempty_list(project)
+  def projects(), do: @projects
 
   @doc """
-  List jobs
+  List jobs for the given `project`.
   """
-  def jobs() do
-    @jobs
+  @spec jobs(project) :: [job]
+  def jobs(project) when is_project(project) do
+    with {:ok, modules} <- :application.get_key(:maintenance, :modules) do
+      Enum.reduce(modules, [], fn module, acc ->
+        with behaviours <- (module.module_info(:attributes) |> Keyword.get_values(:behaviour) |> List.flatten()),
+          true <- MaintenanceJob in behaviours,
+          true <- apply(module, :implements_project?, [project]),
+          job <- apply(module, :job, []) do
+            [job | acc]
+        else
+          _ -> acc
+        end
+      end)
+    end
   end
 
   @doc """

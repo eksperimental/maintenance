@@ -4,6 +4,11 @@ defmodule MaintenanceJob do
   """
 
   @typedoc """
+  The job.
+  """
+  @type t :: atom
+
+  @typedoc """
   The status returned by a job:
   - `{:ok, :updated}` - the job was succefully executed; 
   - `{:ok, no_update_needed}` - the job was succesfully run, but no update was needed; 
@@ -11,6 +16,11 @@ defmodule MaintenanceJob do
   - `:not_implemented` - the job was was not executed because it is not implemented;
   """
   @type status :: {:ok, :updated} | {:ok, :no_update_needed} | {:error, term()} | :not_implemented
+
+  @doc """
+  Retuns the atom representation of the job.
+  """
+  @callback job() :: t()
 
   @doc """
   Runs the job.

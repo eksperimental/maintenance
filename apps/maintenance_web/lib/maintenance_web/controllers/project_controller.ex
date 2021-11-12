@@ -11,7 +11,7 @@ defmodule MaintenanceWeb.ProjectController do
   end
 
   def show_jobs(conn, %{"project" => project}) do
-    jobs = Maintenance.jobs()
+    jobs = project |> String.to_atom() |> Maintenance.jobs()
     render(conn, "show.html", project: project, jobs: jobs)
   end
 

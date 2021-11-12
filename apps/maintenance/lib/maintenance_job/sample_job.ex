@@ -20,6 +20,10 @@ defmodule MaintenanceJob.SampleJob do
   # Callbacks
 
   @impl MaintenanceJob
+  @spec job() :: Maintenance.job
+  def job(), do: @job
+
+  @impl MaintenanceJob
   @spec implements_project?(project :: atom) :: boolean
   def implements_project?(:sample_project), do: true
   def implements_project?(_), do: false
