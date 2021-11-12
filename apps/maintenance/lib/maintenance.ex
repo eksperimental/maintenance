@@ -1,5 +1,6 @@
 defmodule Maintenance do
   @app_name :maintenance
+  @git_repo_url Application.compile_env(:maintenance, :git_repo_url)
 
   @projects [:sample_project, :elixir, :otp]
   @jobs [:sample_job, :unicode]
@@ -18,7 +19,7 @@ defmodule Maintenance do
   def app_name(), do: @app_name
 
   @doc false
-  def git_repo_url(), do: Application.get_env(@app_name, :git_repo_url)
+  def git_repo_url(), do: @git_repo_url
 
   @doc false
   def cache_path() do
