@@ -68,6 +68,10 @@ config :maintenance, MaintenanceJob.Scheduler,
 
 config :maintenance, env: config_env()
 
+config :maintenance, :console,
+  format: "$time $metadata[$level] $message\n",
+  metadata: [:request_id]
+
 if File.exists?("env.local.exs") do
   import_config "env.local.exs"
 end
