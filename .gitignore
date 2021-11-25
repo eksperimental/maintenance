@@ -26,5 +26,5 @@ erl_crash.dump
 /apps/maintenance_web/priv/static/
 
 # Private Info
-/config/env.dev.exs
-/env.dev.sh
+/config/env.secrets.exs
+/env.secrets.sh

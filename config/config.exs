@@ -62,6 +62,7 @@ config :maintenance,
 config :maintenance, MaintenanceJob.Scheduler,
   jobs: [
     {"@reboot", {Maintenance.Runner, :update, []}},
+
     # Run every 6 hours
     {"0 */6 * * *", {Maintenance.Runner, :update, []}}
   ]
@@ -72,8 +73,8 @@ config :maintenance, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-if File.exists?("env.local.exs") do
-  import_config "env.local.exs"
+if File.exists?(Path.join(Path.expand(__DIR__), "env.secrets.exs")) do
+  import_config "env.secrets.exs"
 end
 
 # Import environment specific config. This must remain at the bottom

@@ -24,7 +24,7 @@ if config_env() == :prod do
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: String.to_integer(System.get_env("PORT") || "80")
+      port: String.to_integer(System.get_env("HTTP_PORT") || "80")
     ],
     secret_key_base: secret_key_base
 
@@ -55,21 +55,4 @@ if config_env() == :prod do
   #     config :swoosh, :api_client, Swoosh.ApiClient.Hackney
   #
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
-
-  # Hosting provider
-  hosting_provider =
-    System.get_env("HOSTING_PROVIDER") ||
-      raise """
-      environment variable HOSTING_PROVIDER is missing.
-      """
-
-  config :maintenance, MaintenanceWeb.Endpoint,
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: String.to_integer(System.get_env("PORT") || "80")
-    ],
-    secret_key_base: secret_key_base
-
 end
