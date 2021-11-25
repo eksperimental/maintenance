@@ -69,6 +69,8 @@ config :maintenance, MaintenanceJob.Scheduler,
 
 config :maintenance, env: config_env()
 
+config :maintenance, data_dir: Path.expand("~/maintenance_data/")
+
 config :maintenance, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]

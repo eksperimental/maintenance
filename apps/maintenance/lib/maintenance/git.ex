@@ -3,7 +3,7 @@ defmodule Maintenance.Git do
   Module that deals with the Git commands.
   """
 
-  import Maintenance, only: [is_project: 1, cache_path: 0]
+  import Maintenance, only: [is_project: 1, cache_path: 0, info: 1]
   alias Maintenance.{DB, Project}
 
   @type branch :: String.t()
@@ -69,14 +69,17 @@ defmodule Maintenance.Git do
 
     case get_last_cached_commit_id(project) do
       {:ok, ^last_commit_id} ->
+        info("Git repository already cached [#{project}]")
         {:ok, %{cached?: true}}
 
       {:ok, commit_id} when commit_id != nil ->
+        info("Updating Git repository [#{project}]")
         # Update repository
         :ok = update_repo(project)
         {:ok, %{cached?: false}}
 
       result when result in [{:ok, nil}, :error] ->
+        info("Creating Git repository [#{project}]")
         :ok = create_repo(project)
         {:ok, %{cached?: false}}
     end
@@ -335,7 +338,7 @@ defmodule Maintenance.Git do
     end
   end
 
-  @spec submit_pr(Maintenance.project(), Maintenance.job(), map) :: :ok | {:error}
+  @spec submit_pr(Maintenance.project(), Maintenance.job(), map) :: :ok | {:error, term()}
   def submit_pr(project, job, data = %{title: title, db_key: db_key, db_value: db_value})
       when is_project(project) and
              is_atom(job) and is_map(data) do

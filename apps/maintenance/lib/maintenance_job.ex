@@ -3,6 +3,8 @@ defmodule MaintenanceJob do
   Behaviour to be implemented by the jobs.
   """
 
+  require Logger
+
   @typedoc """
   The job.
   """

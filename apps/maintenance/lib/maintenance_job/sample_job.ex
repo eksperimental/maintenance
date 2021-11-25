@@ -5,7 +5,7 @@ defmodule MaintenanceJob.SampleJob do
 
   @job :sample_job
 
-  import Maintenance, only: [is_project: 1]
+  import Maintenance, only: [is_project: 1, info: 1]
   import Maintenance.Project, only: [config: 2]
   alias Maintenance.{Git, DB}
 
@@ -36,9 +36,12 @@ defmodule MaintenanceJob.SampleJob do
   def update(project) when is_project(project) do
     if needs_update?(project) do
       if pr_exists?(project, @job) do
+        info("PR exists: no update needed [#{project}]")
         {:ok, :no_update_needed}
       else
         fn_task_write_foo = fn ->
+          info("Writting foo file. [#{project}]")
+
           git_path = Git.path(project)
           foo_path = Path.join([git_path, "foo"])
 
@@ -65,7 +68,7 @@ defmodule MaintenanceJob.SampleJob do
     end
   end
 
-  @spec run_tasks(Maintenance.project(), [(() -> :ok)]) :: {:ok, :updated}
+  @spec run_tasks(Maintenance.project(), [(() -> :ok)]) :: MaintenanceJob.status()
   def run_tasks(project, tasks)
       when is_list(tasks) do
     {:ok, _} = Git.cache_repo(project)
@@ -94,10 +97,19 @@ defmodule MaintenanceJob.SampleJob do
       db_value: true
     }
 
-    :ok = Git.submit_pr(project, @job, data)
+    result =
+      case Git.submit_pr(project, @job, data) do
+        :ok ->
+          {:ok, :updated}
+
+        {:error, _} = error ->
+          IO.warn("Could not create PR, failed with: " <> inspect(error))
+          error
+      end
+
     :ok = Git.checkout(project, previous_branch)
 
-    {:ok, :updated}
+    result
   end
 
   defp pr_exists?(:sample_project, job) when is_atom(job) do

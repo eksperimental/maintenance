@@ -1,9 +1,11 @@
 defmodule Maintenance do
   require Application
+  require Logger
 
   @app_name :maintenance
   # TODO: replace bellow :maintenance with @app when minimum required Elixir version fixes this
   @git_repo_url Application.compile_env(:maintenance, :git_repo_url)
+  @data_dir Application.compile_env!(:maintenance, :data_dir)
 
   @projects Maintenance.Project.list()
 
@@ -24,14 +26,19 @@ defmodule Maintenance do
   def git_repo_url(), do: @git_repo_url
 
   @doc false
+  def data_dir() do
+    @data_dir
+  end
+
+  @doc false
   def cache_path() do
-    Maintenance.app_name() |> :code.priv_dir() |> Path.join("cache")
+    data_dir()
+    |> Path.join("cache")
   end
 
   @doc false
   def db_path(project) when is_project(project) do
-    Maintenance.app_name()
-    |> :code.priv_dir()
+    data_dir()
     |> Path.join("database")
     |> Path.join(Atom.to_string(project))
   end
@@ -51,6 +58,13 @@ defmodule Maintenance do
   def auth_url("https://" <> rest) do
     github_account = Application.fetch_env!(@app_name, :github_account)
     "https://#{github_account}:" <> github_access_token() <> "@" <> rest
+  end
+
+  @doc """
+  Logs `message` with info level.
+  """
+  def info(message) when is_binary(message) do
+    Logger.info(message)
   end
 
   @doc """

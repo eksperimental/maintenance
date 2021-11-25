@@ -3,7 +3,7 @@ defmodule MaintenanceJob.Unicode do
   Updates the Unicode Character Database.
   """
 
-  import Maintenance, only: [is_project: 1]
+  import Maintenance, only: [is_project: 1, info: 1]
   import Maintenance.Project, only: [config: 1]
   alias Maintenance.{Git, DB}
 
@@ -93,9 +93,12 @@ defmodule MaintenanceJob.Unicode do
   @doc false
   @spec update(Maintenance.project(), version(), contents()) :: MaintenanceJob.status()
   def update(project = :elixir, version, contents) do
-    if pr_exists?(project, :unicode, version) do
+    if pr_exists?(project, @job, version) do
+      info("PR exists: no update needed [#{project}]")
       {:ok, :no_update_needed}
     else
+      info("Writtings files in repo [#{project}]")
+
       git_path = Git.path(project)
       unicode_dir = Path.join([git_path, "lib", "elixir", "unicode"])
       elixir_dir = Path.join([git_path, "lib", "elixir"])
@@ -153,9 +156,12 @@ defmodule MaintenanceJob.Unicode do
   end
 
   def update(project = :otp, version, contents) do
-    if pr_exists?(project, :unicode, version) do
+    if pr_exists?(project, @job, version) do
+      info("PR exists: no update needed [#{project}, #{version}]")
       {:ok, :no_update_needed}
     else
+      info("Writtings files in repo [#{project}, #{version}]")
+
       git_path = Git.path(project)
       unicode_spec_dir = Path.join([git_path, "lib", "stdlib", "uc_spec"])
       unicode_test_dir = Path.join([git_path, "lib", "stdlib", "test", "unicode_util_SUITE_data"])
@@ -212,7 +218,7 @@ defmodule MaintenanceJob.Unicode do
     end
   end
 
-  @spec run_tasks(Maintenance.project(), version(), [(() -> :ok)]) :: {:ok, :updated}
+  @spec run_tasks(Maintenance.project(), version(), [(() -> :ok)]) :: MaintenanceJob.status()
   def run_tasks(project, version, tasks)
       when is_list(tasks) do
     {:ok, _} = Git.cache_repo(project)
@@ -239,14 +245,23 @@ defmodule MaintenanceJob.Unicode do
 
     data = %{
       title: "Update Unicode to #{version}",
-      db_key: {:unicode, MaintenanceJob.Unicode.to_tuple(version)},
+      db_key: {@job, MaintenanceJob.Unicode.to_tuple(version)},
       db_value: version
     }
 
-    :ok = Git.submit_pr(project, :unicode, data)
+    result =
+      case Git.submit_pr(project, @job, data) do
+        :ok ->
+          {:ok, :updated}
+
+        {:error, _} = error ->
+          IO.warn("Could not create PR, failed with: " <> inspect(error))
+          error
+      end
+
     :ok = Git.checkout(project, previous_branch)
 
-    {:ok, :updated}
+    result
   end
 
   defp commit_msg(unicode_version) when is_version(unicode_version) do
