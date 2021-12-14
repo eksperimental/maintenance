@@ -26,3 +26,4 @@
 
 
 [ <span><%= link "Back to #{String.capitalize(@project)}", to: Routes.project_path(@conn, :show_jobs, @project) %></span> ]
+[ <span><%= link "View All Jobs", to: Routes.job_path(@conn, :index) %></span>]
