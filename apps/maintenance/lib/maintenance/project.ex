@@ -25,6 +25,12 @@ defmodule Maintenance.Project do
       owner_origin: "maintenance-beam",
       owner_upstream: "maintenance-beam-app",
       repo: "buildable"
+    },
+    beam_langs_meta_data: %{
+      main_branch: "main",
+      owner_origin: "maintenance-beam",
+      owner_upstream: "maintenance-beam-app",
+      repo: "beam_langs_meta_data"
     }
   }
 
