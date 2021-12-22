@@ -44,7 +44,7 @@ defmodule Maintenance do
   end
 
   @doc false
-  def github_access_token() do
+  def github_access_token!() do
     case Application.fetch_env(@app_name, :github_access_token) do
       {:ok, github_access_token} ->
         github_access_token
@@ -57,7 +57,7 @@ defmodule Maintenance do
   @doc false
   def auth_url("https://" <> rest) do
     github_account = Application.fetch_env!(@app_name, :github_account)
-    "https://#{github_account}:" <> github_access_token() <> "@" <> rest
+    "https://#{github_account}:" <> github_access_token!() <> "@" <> rest
   end
 
   @doc """

@@ -345,7 +345,7 @@ defmodule Maintenance.Git do
     config = Project.config(project)
     :ok = push_repo(project, config)
 
-    client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token()})
+    client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token!()})
     {:ok, branch} = get_branch(project)
 
     body = %{
