@@ -1,0 +1,17 @@
+[Unit]
+Description=Maintenance
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=noname
+
+EnvironmentFile=/home/noname/env_vars
+
+ExecStart=/bin/bash -c '/home/noname/releases/${RELEASE}/bin/maintenance start'
+
+[Install]
+WantedBy=multi-user.target
