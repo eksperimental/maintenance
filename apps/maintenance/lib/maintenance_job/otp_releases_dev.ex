@@ -60,7 +60,6 @@ defmodule MaintenanceJob.OtpReleases.Dev do
 
           downloads = parse_erlang_org_downloads()
           IO.inspect({__ENV__.line, downloads}, limit: :infinity, printable_limit: :infinity)
-
           # tags = parse_github_tags()
           # IO.inspect {__ENV__.line, tags, limit: :infinity, printable_limit: :infinity}
 
@@ -219,7 +218,6 @@ defmodule MaintenanceJob.OtpReleases.Dev do
     Enum.group_by(versions, fn {_k, v} -> v end, fn {k, _v} -> k end)
   end
 
-
   def parse_erlang_org_downloads() do
     # {:ok, the_downloads} = get_downloads()
     {:ok, the_downloads} = Data.get_downloads()
@@ -262,7 +260,7 @@ defmodule MaintenanceJob.OtpReleases.Dev do
         end
     end
   end
-  
+
   defp parse_github_tags() do
     {:ok, json} = gh_get("https://api.github.com/repos/erlang/otp/tags?per_page=100")
 
