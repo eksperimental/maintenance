@@ -93,10 +93,20 @@ defmodule Maintenance do
     end
   end
 
+  # Public helpers
+
   @doc """
   Returns the MIX_ENV value, as an atom.
   """
   def env!() do
     Application.fetch_env!(app_name(), :env)
+  end
+
+  @doc """
+  Returns `true` if enviromental variables `MAINTENANCE_FULL_PRODUCTION`
+  has been set to `"yes"`, otherwise returns `false`.
+  """
+  def full_production?() do
+    Application.fetch_env!(app_name(), :full_production?)
   end
 end

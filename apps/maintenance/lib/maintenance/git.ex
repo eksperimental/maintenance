@@ -37,7 +37,7 @@ defmodule Maintenance.Git do
     config = Project.config(project)
 
     response =
-      System.cmd("git", ~w(ls-remote #{config.git_url_upstream} refs/heads/#{config.main_branch}))
+      System.cmd("git", ~w(ls-remote #{config.git_url.upstream} refs/heads/#{config.main_branch}))
 
     case response do
       {response_string, 0} ->
@@ -95,7 +95,7 @@ defmodule Maintenance.Git do
     with {_, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{config.git_url_upstream} --depth 1 --branch #{config.main_branch} #{path(project)})
+             ~w(clone #{config.git_url.upstream} --depth 1 --branch #{config.main_branch} #{path(project)})
            ),
          :ok <- config(project),
          git_path <- path(project),
@@ -103,13 +103,15 @@ defmodule Maintenance.Git do
          {_, 0} <-
            System.cmd(
              "git",
-             ~w(remote add origin #{config.git_url_origin}),
+             ~w(remote add origin #{Project.git_url(config, :origin)}),
              cd: git_path
            ),
          # _ <-
          #   System.cmd("git", ~w(remote remove upstream), cd: git_path),
          {_, 0} <-
-           System.cmd("git", ~w(remote add upstream #{config.git_url_upstream}), cd: git_path) do
+           System.cmd("git", ~w(remote add upstream #{Project.git_url(config, :upstream)}),
+             cd: git_path
+           ) do
       :ok
     else
       _ -> :error
@@ -259,27 +261,27 @@ defmodule Maintenance.Git do
     git_path = path(project)
 
     if shallow_repo?(git_path) do
-      # push main branch
+      # push main branch to "origin"
       :ok =
         push_shallow(
           project,
           "origin",
           config.main_branch,
-          config.git_url_origin,
           config.main_branch
         )
 
-      # push upstream
+      # push to upstream
       :ok =
         push_shallow(
           project,
           "upstream",
           config.main_branch,
-          config.git_url_upstream,
           config.main_branch
         )
+
+      # :ok = push(project, Project.git_url(config, :upstream))
     else
-      :ok = push(project, config.git_url_upstream)
+      :ok = push(project, Project.git_url(config, :upstream))
     end
   end
 
@@ -358,16 +360,11 @@ defmodule Maintenance.Git do
         If you find any issue in this PR, please kindly report it to
         #{Maintenance.git_repo_url()}/issues
         """),
-      "head" => Map.get(data, :head, config.owner_origin <> ":" <> branch),
+      "head" => Map.get(data, :head, Project.owner(config, :origin) <> ":" <> branch),
       "base" => Map.get(data, :base, config.main_branch)
     }
 
-    # TODO: Uncomment this once uploaded
-    # if Maintenance.env!() == :prod do
-    #   config.owner_upstream
-    # else
-    owner = config.owner_origin
-    # end
+    owner = Project.owner(config, :upstream)
 
     {response_status, github_response, _httpoison_response} =
       Tentacat.Pulls.create(client, owner, config.repo, body)

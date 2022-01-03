@@ -83,6 +83,38 @@ config :maintenance, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+full_production? =
+  case System.get_env("MAINTENANCE_FULL_PRODUCTION") do
+    "yes" ->
+      true
+
+    "no" ->
+      false
+
+    nil ->
+      false
+
+    _ ->
+      raise(
+        "Only \"yes\" and \"not\" are accepted values for Env variable MAINTENANCE_FULL_PRODUCTION"
+      )
+  end
+
+config :maintenance, :full_production?, full_production?
+
+config_path =
+  __DIR__
+  |> Path.join("..")
+  |> Path.join("config.sh")
+  |> Path.expand()
+
+unless File.exists?(config_path) do
+  File.write(config_path, """
+  # NOTE: Set this to "yes" when in production server and no more testing is done.
+  export MAINTENANCE_FULL_PRODUCTION="no"
+  """)
+end
+
 if File.exists?(Path.join(Path.expand(__DIR__), "env.secrets.exs")) do
   import_config "env.secrets.exs"
 end
