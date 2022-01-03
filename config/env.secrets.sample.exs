@@ -5,8 +5,8 @@ github_access_token = "YOUR_GITHUB_ACCESS_TOKEN"
 
 import Config
 
-config :maintenance_web, :secret_key_base, secret_key_base
-config :maintenance_web, :github_access_token, github_access_token
+config :maintenance, :secret_key_base, secret_key_base
+config :maintenance, :github_access_token, github_access_token
 
 path =
   __DIR__
