@@ -294,11 +294,11 @@ defmodule Maintenance.Git do
   end
 
   # Extracted from: https://github.com/wtsos/learngit/blob/2baa66d462d454ced5d6aa56e93618f0244d0d45/t/t5538-push-shallow.sh
-  @spec push_shallow(Maintenance.project(), String.t(), String.t(), String.t(), String.t()) ::
+  @spec push_shallow(Maintenance.project(), String.t(), String.t(), String.t()) ::
           :ok | :error
-  def push_shallow(project, remote, remote_branch, remote_url, local_branch)
-      when is_project(project) and is_binary(remote) and is_binary(remote_branch) and
-             is_binary(remote_url) and is_binary(local_branch) do
+  def push_shallow(project, remote, remote_branch, local_branch)
+      when is_project(project) and is_binary(remote) and is_binary(local_branch) and
+             is_binary(remote_branch) do
     with git_path <- path(project),
          {_, 0} <-
            System.cmd(
