@@ -59,13 +59,20 @@ config :maintenance,
   github_account: "maintenance-beam-app"
 
 # CRONTAB SCHEDULER
-config :maintenance, MaintenanceJob.Scheduler,
-  jobs: [
-    {"@reboot", {Maintenance.Runner, :update, []}},
+job_on_reboot =
+  if config_env() == :prod do
+    [{"@reboot", {Maintenance.Runner, :update, []}}]
+  else
+    []
+  end
 
-    # Run every 6 hours
-    {"0 */6 * * *", {Maintenance.Runner, :update, []}}
-  ]
+config :maintenance, MaintenanceJob.Scheduler,
+  jobs:
+    job_on_reboot ++
+      [
+        # Run every 6 hours
+        {"0 */6 * * *", {Maintenance.Runner, :update, []}}
+      ]
 
 config :maintenance, env: config_env()
 
