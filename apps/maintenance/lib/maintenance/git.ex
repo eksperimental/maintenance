@@ -279,7 +279,7 @@ defmodule Maintenance.Git do
           config.main_branch
         )
 
-      # :ok = push(project, Project.git_url(config, :upstream))
+      :ok = push(project, Project.git_url(config, :upstream))
     else
       :ok = push(project, Project.git_url(config, :upstream))
     end

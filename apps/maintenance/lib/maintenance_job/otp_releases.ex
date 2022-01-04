@@ -4,8 +4,9 @@ defmodule MaintenanceJob.OtpReleases do
   """
 
   @job :otp_releases
+  @req_options [receive_timeout: 60_000 * 5] # 5 minutes
 
-  @erlang_download_url "https://erlang.org/download"
+  @erlang_download_url "https://erlang.org/download/"
   @github_tags_url "https://api.github.com/repos/erlang/otp/tags?per_page=100"
   @version_table_url "https://raw.githubusercontent.com/erlang/otp/master/otp_versions.table"
   @github_releases_url "https://api.github.com/repos/erlang/otp/releases?per_page=100"
@@ -46,39 +47,37 @@ defmodule MaintenanceJob.OtpReleases do
   @impl MaintenanceJob
   @spec update(Maintenance.project()) :: MaintenanceJob.status()
   def update(project) when is_project(project) do
-    cond do
-      not needs_update?(project) ->
-        {:ok, :no_update_needed}
+    {:ok, otp_versions_table} = get_versions_table()
+    otp_versions_table_hash = Maintenance.Util.hash(String.trim(otp_versions_table))
 
-      pr_exists?(project, @job) ->
+    cond do
+      not needs_update?(project, @job, {:otp_versions_table_hash, otp_versions_table_hash}) ->
         info("PR exists: no update needed [#{project}]")
         {:ok, :no_update_needed}
 
       true ->
         fn_task_write_foo = fn ->
-          {:ok, otp_versions_table} = get_versions_table()
-          # {:ok, otp_versions_table} = Data.get_versions_table()
-
           versions = parse_otp_versions_table(otp_versions_table)
-          # debug(versions)
-          # debug(otp_versions_table)
 
           downloads = parse_erlang_org_downloads()
           tags = parse_github_tags()
 
           {:ok, gh_releases} = gh_get(@github_releases_url)
-          # {:ok, gh_releases} = Data.gh_get()
 
           releases =
             for {major, patches} <- versions do
               process_patches(major, patches, downloads, tags, gh_releases)
             end
+            |> :lists.reverse()
 
           json_path = Path.join(Git.path(project), "priv/otp_releases.json")
           info("Writting opt releases: #{json_path}")
 
           :ok = File.write(json_path, create_release_json(releases))
           Git.add(project, json_path)
+
+          otp_version_table_hash = Maintenance.Util.hash(String.trim(otp_versions_table))
+          {:otp_version_table, otp_version_table_hash}
         end
 
         run_tasks(project, [fn_task_write_foo])
@@ -120,22 +119,10 @@ defmodule MaintenanceJob.OtpReleases do
   #########################
   # Helpers
 
-  defp bool(term), do: not (!term)
+  defp needs_update?(project, db_key, db_value)
 
-  def needs_update?(_project) do
-    # {:ok, otp_versions_table} = get_versions_table()
-
-    # latest_otp_version =
-    #   otp_versions_table
-    #   |> Enum.at(-1)
-    #   |> elem(1)
-    #   |> List.first()
-
-    # json_path = Path.join(Git.path(project), "priv/otp_releases.json")
-
-    # otp_releases = Jason.decode(json_path)
-
-    true
+  defp needs_update?(:beam_langs_meta_data, job, value) when is_atom(job) do
+    value != DB.get(:beam_langs_meta_data, job)
   end
 
   @spec run_tasks(Maintenance.project(), [(() -> :ok)]) :: MaintenanceJob.status()
@@ -154,9 +141,10 @@ defmodule MaintenanceJob.OtpReleases do
 
     :ok = Git.checkout_new_branch(project, new_branch)
 
-    tasks
-    |> Task.async_stream(& &1.(), timeout: :infinity)
-    |> Stream.run()
+    [ok: {:otp_version_table, otp_version_table_hash}] =
+      tasks
+      |> Task.async_stream(& &1.(), timeout: :infinity)
+      |> Enum.to_list()
 
     # Commit
     :ok = Git.commit(project, "Update otp_releases.json")
@@ -164,7 +152,7 @@ defmodule MaintenanceJob.OtpReleases do
     data = %{
       title: "Update OTP releases",
       db_key: @job,
-      db_value: true
+      db_value: {:otp_version_table, otp_version_table_hash}
     }
 
     result =
@@ -181,15 +169,6 @@ defmodule MaintenanceJob.OtpReleases do
     :ok = Git.checkout(project, previous_branch)
 
     result
-  end
-
-  defp pr_exists?(:beam_langs_meta_data, job) when is_atom(job) do
-    bool(get_sample_project_db_entry(:beam_langs_meta_data, job))
-  end
-
-  defp get_sample_project_db_entry(project, job)
-       when is_project(project) and is_atom(job) do
-    DB.get(project, job)
   end
 
   def parse_otp_versions_table(versions_table) do
@@ -251,7 +230,7 @@ defmodule MaintenanceJob.OtpReleases do
         for {vsn, key} <- results, reduce: vsns do
           map ->
             info = Map.get(map, vsn, %{})
-            link = @erlang_download_url <> "/" <> download
+            link = @erlang_download_url <> download
             value = Map.put(info, key, link)
             Map.put(map, vsn, value)
         end
@@ -261,7 +240,7 @@ defmodule MaintenanceJob.OtpReleases do
   def process_patches(major, patches, downloads, tags, releases) do
     new_patches = pmap(patches, &process_patch(&1, releases, downloads, tags))
     complete_patches = Enum.filter(new_patches, &is_map_key(&1, :readme))
-    %{patches: complete_patches, latest: List.last(complete_patches), release: major}
+    %{patches: complete_patches, latest: List.first(complete_patches), release: major}
   end
 
   def process_patch(patch_vsn, releases, downloads, tags) do
@@ -349,13 +328,14 @@ defmodule MaintenanceJob.OtpReleases do
     |> Enum.map(&Task.await/1)
   end
 
-  defp gh_get(url) do
+  @doc false
+  def gh_get(url) do
     request_headers = [
       {"Accept", "application/vnd.github.v3+json"},
       {"Authorization", "token " <> Maintenance.github_access_token!()}
     ]
 
-    response = Req.get!(url, headers: request_headers)
+    response = Req.get!(url, [headers: request_headers] ++ @req_options)
 
     case response do
       %{status: 200} -> get_link(response)
@@ -395,4 +375,18 @@ defmodule MaintenanceJob.OtpReleases do
       end
     end
   end
+
+  # @spec latest_version_online() :: String.t()
+  # def latest_version_online() do
+  #   parse_erlang_org_downloads()
+  #   |> Map.keys()
+  #   |> Enum.filter(fn x ->
+  #     case Integer.parse(x) do
+  #       :error -> false
+  #       {_, _} -> true
+  #     end
+  #   end)
+  #   |> Enum.sort(:desc)
+  #   |> List.first()
+  # end
 end
