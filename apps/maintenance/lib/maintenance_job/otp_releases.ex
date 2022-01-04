@@ -3,6 +3,8 @@ defmodule MaintenanceJob.OtpReleases do
   OTP Releases job.
   """
 
+  alias Maintenance.Util
+
   @job :otp_releases
   # 5 minutes
   @req_options [receive_timeout: 60_000 * 5]
@@ -49,14 +51,14 @@ defmodule MaintenanceJob.OtpReleases do
   @spec update(Maintenance.project()) :: MaintenanceJob.status()
   def update(project) when is_project(project) do
     {:ok, otp_versions_table} = get_versions_table()
-    otp_versions_table_hash = Maintenance.Util.hash(String.trim(otp_versions_table))
+    otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
 
     IO.inspect({:otp_versions_table, otp_versions_table_hash})
 
     cond do
       not needs_update?(project, @job, {:otp_versions_table, otp_versions_table_hash}) ->
         info(
-          "PR exists: no update needed [#{project}]: " <> DB.get(:beam_langs_meta_data, job).url
+          "PR exists: no update needed [#{project}]: " <> DB.get(:beam_langs_meta_data, @job).url
         )
 
         {:ok, :no_update_needed}
@@ -82,7 +84,7 @@ defmodule MaintenanceJob.OtpReleases do
           :ok = File.write(json_path, create_release_json(releases))
           Git.add(project, json_path)
 
-          otp_versions_table_hash = Maintenance.Util.hash(String.trim(otp_versions_table))
+          otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
           {:otp_versions_table, otp_versions_table_hash}
         end
 
@@ -139,8 +141,7 @@ defmodule MaintenanceJob.OtpReleases do
     :ok = Git.checkout(project, config(project, :main_branch))
     {:ok, previous_branch} = Git.get_branch(project)
 
-    unix_time = DateTime.now!("Etc/UTC") |> DateTime.to_unix()
-    new_branch = "#{project}_#{unix_time}"
+    new_branch = Util.unique_branch_name(project)
 
     if Git.branch_exists?(project, new_branch) do
       :ok = Git.delete_branch(project, new_branch)
@@ -153,29 +154,48 @@ defmodule MaintenanceJob.OtpReleases do
       |> Task.async_stream(& &1.(), timeout: :infinity)
       |> Enum.to_list()
 
-    # Commit
-    :ok = Git.commit(project, "Update otp_releases.json")
-
     data = %{
       title: "Update OTP releases",
       db_key: @job,
       db_value: {:otp_versions_table, otp_versions_table_hash}
     }
 
-    result =
-      case Git.submit_pr(project, @job, data) do
-        :ok ->
-          {:ok, :updated}
+    # Commit
+    commit_msg = "Update otp_releases.json"
 
-        {:error, _} = error ->
-          IO.inspect(data)
-          IO.warn("Could not create PR, failed with: " <> inspect(error))
-          error
+    fn_result =
+      case Git.commit(project, commit_msg) do
+        :ok ->
+          result = submit_pr(project, @job, data)
+          fn -> result end
+
+        {:error, error} ->
+          with {msg, 1} <- error,
+               "nothing to commit, working tree clean" <-
+                 String.trim(msg) |> String.split("\n") |> List.last() do
+            fn ->
+              IO.puts("Project is already up-to-date: " <> inspect(error))
+              {:ok, :no_update_needed}
+            end
+          else
+            _ ->
+              fn -> raise("Could not commit: " <> inspect(error)) end
+          end
       end
 
     :ok = Git.checkout(project, previous_branch)
+    fn_result.()
+  end
 
-    result
+  defp submit_pr(project, job, data) do
+    case Git.submit_pr(project, job, data) do
+      :ok ->
+        {:ok, :updated}
+
+      {:error, _} = error ->
+        IO.warn("Could not create PR, failed with: " <> inspect(error))
+        error
+    end
   end
 
   def parse_otp_versions_table(versions_table) do

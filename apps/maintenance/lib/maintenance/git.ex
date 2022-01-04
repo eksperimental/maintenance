@@ -37,7 +37,10 @@ defmodule Maintenance.Git do
     config = Project.config(project)
 
     response =
-      System.cmd("git", ~w(ls-remote #{config.git_url.upstream} refs/heads/#{config.main_branch}))
+      System.cmd(
+        "git",
+        ~w(ls-remote #{Project.git_url(config, :upstream)} refs/heads/#{config.main_branch})
+      )
 
     case response do
       {response_string, 0} ->
@@ -95,7 +98,7 @@ defmodule Maintenance.Git do
     with {_, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{config.git_url.upstream} --branch #{config.main_branch} #{path(project)})
+             ~w(clone #{Project.git_url(config, :upstream)} --branch #{config.main_branch} #{path(project)})
            ),
          :ok <- config(project),
          git_path <- path(project),
@@ -173,7 +176,7 @@ defmodule Maintenance.Git do
     end
   end
 
-  @spec commit(Maintenance.project(), String.t()) :: :ok | :error
+  @spec commit(Maintenance.project(), String.t()) :: :ok | {:error, term}
   def commit(project, message) when is_project(project) when is_binary(message) do
     with git_path <- path(project),
          {_, 0} <- System.cmd("git", ~w(add -- .), cd: git_path),
@@ -181,7 +184,8 @@ defmodule Maintenance.Git do
            System.cmd("git", ["-c", "commit.gpgsign=false", "commit", "-m", message], cd: git_path) do
       :ok
     else
-      _ -> :error
+      error ->
+        {:error, error}
     end
   end
 
