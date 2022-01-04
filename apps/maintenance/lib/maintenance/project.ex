@@ -39,7 +39,7 @@ defmodule Maintenance.Project do
     beam_langs_meta_data: %{
       main_branch: "main",
       owner_upstream: "eksperimental",
-      owner_origin: "maintenance-beam",
+      owner_origin: "maintenance-beam-app",
       owner_dev: "maintenance-beam-app",
       repo: "beam_langs_meta_data"
     }
