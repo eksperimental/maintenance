@@ -4,7 +4,8 @@ defmodule MaintenanceJob.OtpReleases do
   """
 
   @job :otp_releases
-  @req_options [receive_timeout: 60_000 * 5] # 5 minutes
+  # 5 minutes
+  @req_options [receive_timeout: 60_000 * 5]
 
   @erlang_download_url "https://erlang.org/download/"
   @github_tags_url "https://api.github.com/repos/erlang/otp/tags?per_page=100"
@@ -50,9 +51,14 @@ defmodule MaintenanceJob.OtpReleases do
     {:ok, otp_versions_table} = get_versions_table()
     otp_versions_table_hash = Maintenance.Util.hash(String.trim(otp_versions_table))
 
+    IO.inspect({:otp_versions_table, otp_versions_table_hash})
+
     cond do
-      not needs_update?(project, @job, {:otp_versions_table_hash, otp_versions_table_hash}) ->
-        info("PR exists: no update needed [#{project}]")
+      not needs_update?(project, @job, {:otp_versions_table, otp_versions_table_hash}) ->
+        info(
+          "PR exists: no update needed [#{project}]: " <> DB.get(:beam_langs_meta_data, job).url
+        )
+
         {:ok, :no_update_needed}
 
       true ->
@@ -76,8 +82,8 @@ defmodule MaintenanceJob.OtpReleases do
           :ok = File.write(json_path, create_release_json(releases))
           Git.add(project, json_path)
 
-          otp_version_table_hash = Maintenance.Util.hash(String.trim(otp_versions_table))
-          {:otp_version_table, otp_version_table_hash}
+          otp_versions_table_hash = Maintenance.Util.hash(String.trim(otp_versions_table))
+          {:otp_versions_table, otp_versions_table_hash}
         end
 
         run_tasks(project, [fn_task_write_foo])
@@ -122,7 +128,7 @@ defmodule MaintenanceJob.OtpReleases do
   defp needs_update?(project, db_key, db_value)
 
   defp needs_update?(:beam_langs_meta_data, job, value) when is_atom(job) do
-    value != DB.get(:beam_langs_meta_data, job)
+    value != DB.get(:beam_langs_meta_data, job)[:value]
   end
 
   @spec run_tasks(Maintenance.project(), [(() -> :ok)]) :: MaintenanceJob.status()
@@ -133,7 +139,8 @@ defmodule MaintenanceJob.OtpReleases do
     :ok = Git.checkout(project, config(project, :main_branch))
     {:ok, previous_branch} = Git.get_branch(project)
 
-    new_branch = to_string(project)
+    unix_time = DateTime.now!("Etc/UTC") |> DateTime.to_unix()
+    new_branch = "#{project}_#{unix_time}"
 
     if Git.branch_exists?(project, new_branch) do
       :ok = Git.delete_branch(project, new_branch)
@@ -141,7 +148,7 @@ defmodule MaintenanceJob.OtpReleases do
 
     :ok = Git.checkout_new_branch(project, new_branch)
 
-    [ok: {:otp_version_table, otp_version_table_hash}] =
+    [ok: {:otp_versions_table, otp_versions_table_hash}] =
       tasks
       |> Task.async_stream(& &1.(), timeout: :infinity)
       |> Enum.to_list()
@@ -152,7 +159,7 @@ defmodule MaintenanceJob.OtpReleases do
     data = %{
       title: "Update OTP releases",
       db_key: @job,
-      db_value: {:otp_version_table, otp_version_table_hash}
+      db_value: {:otp_versions_table, otp_versions_table_hash}
     }
 
     result =
