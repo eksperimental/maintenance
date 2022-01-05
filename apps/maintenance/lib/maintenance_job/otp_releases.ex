@@ -85,7 +85,7 @@ defmodule MaintenanceJob.OtpReleases do
   end
 
   @impl MaintenanceJob
-  @spec needs_update?(Maintenance.project(), MaintenanceJob.job(), tuple()) :: boolean()
+  @spec needs_update?(Maintenance.project(), MaintenanceJob.t(), tuple()) :: boolean()
   def needs_update?(project, db_key, db_value)
 
   def needs_update?(:beam_langs_meta_data, job, value) when is_atom(job) do
@@ -101,7 +101,7 @@ defmodule MaintenanceJob.OtpReleases do
     :ok = Git.checkout(project, config(project, :main_branch))
     {:ok, previous_branch} = Git.get_branch(project)
 
-    new_branch = Util.unique_branch_name(project)
+    new_branch = Util.unique_branch_name(to_string(project))
 
     if Git.branch_exists?(project, new_branch) do
       :ok = Git.delete_branch(project, new_branch)
@@ -377,7 +377,7 @@ defmodule MaintenanceJob.OtpReleases do
           [next_url] ->
             {:ok, next_json} = gh_get(next_url)
             body = Map.fetch!(response, :body)
-            {:ok, body ++ next_json}
+            {:ok, List.wrap(body) ++ next_json}
         end
     end
   end
