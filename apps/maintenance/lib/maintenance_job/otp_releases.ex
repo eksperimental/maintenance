@@ -36,7 +36,7 @@ defmodule MaintenanceJob.OtpReleases do
   @impl MaintenanceJob
   @spec implements_project?(project :: atom) :: boolean
   def implements_project?(:beam_langs_meta_data), do: true
-  def implements_project?(_), do: false
+  def implements_project?(project) when is_atom(project), do: false
 
   @doc """
   Updates the `foo` file in the given `project` by creating a Git commit.
@@ -46,8 +46,6 @@ defmodule MaintenanceJob.OtpReleases do
   def update(project) when is_project(project) do
     {:ok, otp_versions_table} = get_versions_table()
     otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
-
-    IO.inspect({:otp_versions_table, otp_versions_table_hash})
 
     cond do
       not needs_update?(project, @job, {:otp_versions_table, otp_versions_table_hash}) ->
@@ -86,49 +84,17 @@ defmodule MaintenanceJob.OtpReleases do
     end
   end
 
-  @doc """
-  Gets the versions tables from OTP repository.
-  """
-  @spec get_versions_table() :: {:ok, contents :: String.t()} | :error
-  def get_versions_table() do
-    result = Req.get!(@version_table_url)
+  @impl MaintenanceJob
+  @spec needs_update?(Maintenance.project(), MaintenanceJob.job(), tuple()) :: boolean()
+  def needs_update?(project, db_key, db_value)
 
-    case result do
-      %{status: 200} ->
-        {:ok, Map.fetch!(result, :body)}
-
-      _ ->
-        :error
-    end
-  end
-
-  @doc """
-  Gets the downloads page from https://erlang.org
-  """
-  @spec get_downloads() :: {:ok, contents :: String.t()} | :error
-  def get_downloads() do
-    result = Req.get!(@erlang_download_url)
-
-    case result do
-      %{status: 200} ->
-        {:ok, Map.fetch!(result, :body)}
-
-      _ ->
-        :error
-    end
-  end
-
-  #########################
-  # Helpers
-
-  defp needs_update?(project, db_key, db_value)
-
-  defp needs_update?(:beam_langs_meta_data, job, value) when is_atom(job) do
+  def needs_update?(:beam_langs_meta_data, job, value) when is_atom(job) do
     value != DB.get(:beam_langs_meta_data, job)[:value]
   end
 
-  @spec run_tasks(Maintenance.project(), [(() -> :ok)]) :: MaintenanceJob.status()
-  def run_tasks(project, tasks)
+  @impl MaintenanceJob
+  @spec run_tasks(Maintenance.project(), [(() -> :ok)], term) :: MaintenanceJob.status()
+  def run_tasks(project, tasks, _additional_term \\ nil)
       when is_list(tasks) do
     {:ok, _} = Git.cache_repo(project)
 
@@ -189,6 +155,41 @@ defmodule MaintenanceJob.OtpReleases do
       {:error, _} = error ->
         IO.warn("Could not create PR, failed with: " <> inspect(error))
         error
+    end
+  end
+
+  #########################
+  # Helpers
+
+  @doc """
+  Gets the versions tables from OTP repository.
+  """
+  @spec get_versions_table() :: {:ok, contents :: String.t()} | :error
+  def get_versions_table() do
+    result = Req.get!(@version_table_url)
+
+    case result do
+      %{status: 200} ->
+        {:ok, Map.fetch!(result, :body)}
+
+      _ ->
+        :error
+    end
+  end
+
+  @doc """
+  Gets the downloads page from https://erlang.org
+  """
+  @spec get_downloads() :: {:ok, contents :: String.t()} | :error
+  def get_downloads() do
+    result = Req.get!(@erlang_download_url)
+
+    case result do
+      %{status: 200} ->
+        {:ok, Map.fetch!(result, :body)}
+
+      _ ->
+        :error
     end
   end
 
@@ -396,18 +397,4 @@ defmodule MaintenanceJob.OtpReleases do
       end
     end
   end
-
-  # @spec latest_version_online() :: String.t()
-  # def latest_version_online() do
-  #   parse_erlang_org_downloads()
-  #   |> Map.keys()
-  #   |> Enum.filter(fn x ->
-  #     case Integer.parse(x) do
-  #       :error -> false
-  #       {_, _} -> true
-  #     end
-  #   end)
-  #   |> Enum.sort(:desc)
-  #   |> List.first()
-  # end
 end
