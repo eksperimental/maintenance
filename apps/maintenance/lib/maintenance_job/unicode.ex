@@ -151,7 +151,7 @@ defmodule MaintenanceJob.Unicode do
       end
 
       all_fn_tasks = [fn_task_special_casing, fn_task_string_module | fn_tasks]
-      run_tasks(project, version, all_fn_tasks)
+      run_tasks(project, all_fn_tasks, version)
     end
   end
 
@@ -214,12 +214,13 @@ defmodule MaintenanceJob.Unicode do
       end
 
       all_fn_tasks = [fn_task_readme_update, fn_task_gen_unicode | fn_tasks]
-      run_tasks(project, version, all_fn_tasks)
+      run_tasks(project, all_fn_tasks, version)
     end
   end
 
-  @spec run_tasks(Maintenance.project(), version(), [(() -> :ok)]) :: MaintenanceJob.status()
-  def run_tasks(project, version, tasks)
+  @impl MaintenanceJob
+  @spec run_tasks(Maintenance.project(), [(() -> :ok)], version()) :: MaintenanceJob.status()
+  def run_tasks(project, tasks, version)
       when is_list(tasks) do
     {:ok, _} = Git.cache_repo(project)
 

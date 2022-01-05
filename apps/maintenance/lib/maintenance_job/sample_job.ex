@@ -68,8 +68,9 @@ defmodule MaintenanceJob.SampleJob do
     end
   end
 
+  @impl MaintenanceJob
   @spec run_tasks(Maintenance.project(), [(() -> :ok)]) :: MaintenanceJob.status()
-  def run_tasks(project, tasks)
+  def run_tasks(project, tasks, _additional_term \\ nil)
       when is_list(tasks) do
     {:ok, _} = Git.cache_repo(project)
 
