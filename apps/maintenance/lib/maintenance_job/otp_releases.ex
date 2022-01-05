@@ -4,6 +4,7 @@ defmodule MaintenanceJob.OtpReleases do
   """
 
   alias Maintenance.Util
+  use Util
 
   @job :otp_releases
   # 5 minutes
@@ -24,13 +25,6 @@ defmodule MaintenanceJob.OtpReleases do
   @type response :: %Finch.Response{}
   @type response_status :: pos_integer()
   @type contents :: %{required(file_name :: String.t()) => file_contents :: String.t()}
-
-  defmacrop debug(term) do
-    quote bind_quoted: [term: term, line: __CALLER__.line] do
-      Logger.debug(inspect({line, term}, limit: :infinity, printable_limit: :infinity))
-      term
-    end
-  end
 
   #############################
   # Callbacks
