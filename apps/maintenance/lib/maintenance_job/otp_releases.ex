@@ -27,7 +27,7 @@ defmodule MaintenanceJob.OtpReleases do
 
   defmacrop debug(term) do
     quote bind_quoted: [term: term, line: __CALLER__.line] do
-      IO.inspect({line, term}, limit: :infinity, printable_limit: :infinity)
+      Logger.debug(inspect({line, term}, limit: :infinity, printable_limit: :infinity))
       term
     end
   end
