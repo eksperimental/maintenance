@@ -315,7 +315,7 @@ defmodule MaintenanceJob.Unicode do
   @doc """
   Returns the latest Unicode version available.
   """
-  @spec get_latest_unicode_version() :: {:ok, %Version{}} | :error
+  @spec get_latest_unicode_version() :: {:ok, Version.t()} | :error
   def get_latest_unicode_version() do
     result =
       "https://www.unicode.org/Public/UCD/latest/ReadMe.txt"
@@ -395,8 +395,7 @@ defmodule MaintenanceJob.Unicode do
       %{"version" => version_string} ->
         version =
           String.split(version_string, ",")
-          |> Enum.map(&String.trim/1)
-          |> Enum.join(".")
+          |> Enum.map_join(".", &String.trim/1)
           |> to_version()
 
         # {:ok, to_version("13.0.0")}

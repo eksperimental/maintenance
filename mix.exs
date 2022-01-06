@@ -52,7 +52,7 @@ defmodule Maintenance.Umbrella.MixProject do
         "compile --warnings-as-errors",
         "dialyzer",
         "docs",
-        "credo"
+        "credo --ignore Credo.Check.Design.TagTODO"
       ]
     ]
   end

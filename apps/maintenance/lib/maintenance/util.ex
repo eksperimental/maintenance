@@ -1,4 +1,8 @@
 defmodule Maintenance.Util do
+  @moduledoc """
+  Convenience functions.
+  """
+
   defmacro __using__(_options \\ []) do
     quote do
       require Logger

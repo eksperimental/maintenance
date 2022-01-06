@@ -47,40 +47,38 @@ defmodule MaintenanceJob.OtpReleases do
     {:ok, otp_versions_table} = get_versions_table()
     otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
 
-    cond do
-      not needs_update?(project, @job, {:otp_versions_table, otp_versions_table_hash}) ->
-        info(
-          "PR exists: no update needed [#{project}]: " <> DB.get(:beam_langs_meta_data, @job).url
-        )
+    if needs_update?(project, @job, {:otp_versions_table, otp_versions_table_hash}) == false do
+      info(
+        "PR exists: no update needed [#{project}]: " <> DB.get(:beam_langs_meta_data, @job).url
+      )
 
-        {:ok, :no_update_needed}
+      {:ok, :no_update_needed}
+    else
+      fn_task_write_foo = fn ->
+        versions = parse_otp_versions_table(otp_versions_table)
 
-      true ->
-        fn_task_write_foo = fn ->
-          versions = parse_otp_versions_table(otp_versions_table)
+        downloads = parse_erlang_org_downloads()
+        tags = parse_github_tags()
 
-          downloads = parse_erlang_org_downloads()
-          tags = parse_github_tags()
+        {:ok, gh_releases} = gh_get(@github_releases_url)
 
-          {:ok, gh_releases} = gh_get(@github_releases_url)
+        releases =
+          for {major, patches} <- versions do
+            process_patches(major, patches, downloads, tags, gh_releases)
+          end
+          |> :lists.reverse()
 
-          releases =
-            for {major, patches} <- versions do
-              process_patches(major, patches, downloads, tags, gh_releases)
-            end
-            |> :lists.reverse()
+        json_path = Path.join(Git.path(project), "priv/otp_releases.json")
+        info("Writting opt releases: #{json_path}")
 
-          json_path = Path.join(Git.path(project), "priv/otp_releases.json")
-          info("Writting opt releases: #{json_path}")
+        :ok = File.write(json_path, create_release_json(releases))
+        Git.add(project, json_path)
 
-          :ok = File.write(json_path, create_release_json(releases))
-          Git.add(project, json_path)
+        otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
+        {:otp_versions_table, otp_versions_table_hash}
+      end
 
-          otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
-          {:otp_versions_table, otp_versions_table_hash}
-        end
-
-        run_tasks(project, [fn_task_write_foo])
+      run_tasks(project, [fn_task_write_foo])
     end
   end
 
@@ -303,19 +301,18 @@ defmodule MaintenanceJob.OtpReleases do
       src: ~R{^otp_src.*}
     }
 
-    Enum.flat_map(
-      Map.to_list(matches),
-      fn {key, match} ->
-        case Enum.find(assets, fn asset -> Regex.match?(match, Map.get(asset, "name")) end) do
-          nil ->
-            []
-
-          value ->
-            [{key, %{url: Map.get(value, "browser_download_url"), id: Map.get(value, "id")}}]
-        end
-      end
-    )
+    Enum.flat_map(Map.to_list(matches), &fetch_asset(&1, assets))
     |> Enum.into(%{})
+  end
+
+  defp fetch_asset({key, match}, assets) do
+    case Enum.find(assets, fn asset -> Regex.match?(match, Map.get(asset, "name")) end) do
+      nil ->
+        []
+
+      value ->
+        [{key, %{url: Map.get(value, "browser_download_url"), id: Map.get(value, "id")}}]
+    end
   end
 
   defp create_release_json(releases) do
@@ -335,7 +332,7 @@ defmodule MaintenanceJob.OtpReleases do
 
   defp strip_ids(patch) do
     Enum.filter(patch, fn
-      {_Key, %{id: _, url: url}} ->
+      {_key, %{id: _, url: url}} ->
         url
 
       {_, value} ->
@@ -365,7 +362,7 @@ defmodule MaintenanceJob.OtpReleases do
     end
   end
 
-  defp get_link(%{headers: headers} = response) do
+  defp get_link(response = %{headers: headers}) do
     case List.keyfind(headers, "link", 0) do
       {"link", link} ->
         # <https://api.github.com/repositories/374927/releases?per_page=100&page=2>; rel="next", <https://api.github.com/repositories/374927/releases?per_page=100&page=2>; rel="last"
