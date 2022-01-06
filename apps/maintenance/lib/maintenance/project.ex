@@ -31,10 +31,10 @@ defmodule Maintenance.Project do
     },
     sample_project: %{
       main_branch: "main",
-      owner_upstream: "eksperimental",
-      owner_origin: "maintenance-beam",
+      owner_upstream: "maintenance-beam",
+      owner_origin: "maintenance-beam-app",
       owner_dev: "maintenance-beam-app",
-      repo: "buildable"
+      repo: "sample_project"
     },
     beam_langs_meta_data: %{
       main_branch: "main",
