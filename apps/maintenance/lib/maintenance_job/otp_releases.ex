@@ -21,7 +21,6 @@ defmodule MaintenanceJob.OtpReleases do
 
   @behaviour MaintenanceJob
 
-  @type version :: %Version{}
   @type response :: %Finch.Response{}
   @type response_status :: pos_integer()
   @type contents :: %{required(file_name :: String.t()) => file_contents :: String.t()}
@@ -39,7 +38,7 @@ defmodule MaintenanceJob.OtpReleases do
   def implements_project?(project) when is_atom(project), do: false
 
   @doc """
-  Updates the `foo` file in the given `project` by creating a Git commit.
+  Updates the OTP versions in `beam_langs_meta_data`.
   """
   @impl MaintenanceJob
   @spec update(Maintenance.project()) :: MaintenanceJob.status()
@@ -94,25 +93,14 @@ defmodule MaintenanceJob.OtpReleases do
   @spec run_tasks(Maintenance.project(), [(() -> :ok)], term) :: MaintenanceJob.status()
   def run_tasks(project, tasks, _additional_term \\ nil)
       when is_list(tasks) do
-    {:ok, _} = Git.cache_repo(project)
-
-    :ok = Git.checkout(project, config(project, :main_branch))
-    {:ok, previous_branch} = Git.get_branch(project)
-
-    new_branch = Util.unique_branch_name(to_string(project))
-
-    if Git.branch_exists?(project, new_branch) do
-      :ok = Git.delete_branch(project, new_branch)
-    end
-
-    :ok = Git.checkout_new_branch(project, new_branch)
+    {:ok, _new_branch, previous_branch} = checkout_new_branch(project)
 
     [ok: {:otp_versions_table, otp_versions_table_hash}] =
       tasks
       |> Task.async_stream(& &1.(), timeout: :infinity)
       |> Enum.to_list()
 
-    data = %{
+    pr_data = %{
       title: "Update OTP releases",
       db_key: @job,
       db_value: {:otp_versions_table, otp_versions_table_hash}
@@ -121,18 +109,17 @@ defmodule MaintenanceJob.OtpReleases do
     # Commit
     commit_msg = "Update otp_releases.json"
 
-    fn_result =
+    result =
       case Git.commit(project, commit_msg) do
         :ok ->
-          result = submit_pr(project, @job, data)
-          fn -> result end
+          submit_pr(project, @job, pr_data)
 
         {:error, error} ->
           with {msg, 1} <- error,
                "nothing to commit, working tree clean" <-
                  String.trim(msg) |> String.split("\n") |> List.last() do
             fn ->
-              IO.puts("Project is already up-to-date: " <> inspect(error))
+              info("Project is already up-to-date: " <> inspect(error))
               {:ok, :no_update_needed}
             end
           else
@@ -142,7 +129,24 @@ defmodule MaintenanceJob.OtpReleases do
       end
 
     :ok = Git.checkout(project, previous_branch)
-    fn_result.()
+
+    if is_function(result, 0) do
+      result.()
+    else
+      result
+    end
+  end
+
+  defp checkout_new_branch(project) do
+    {:ok, _} = Git.cache_repo(project)
+
+    :ok = Git.checkout(project, config(project, :main_branch))
+    {:ok, previous_branch} = Git.get_branch(project)
+
+    new_branch = Util.unique_branch_name(to_string(project))
+
+    :ok = Git.checkout_new_branch(project, new_branch)
+    {:ok, new_branch, previous_branch}
   end
 
   defp submit_pr(project, job, data) do
