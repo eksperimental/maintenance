@@ -1,6 +1,8 @@
 defmodule MaintenanceJob do
   @moduledoc """
   Behaviour to be implemented by the jobs.
+
+  Note that a job can be implemented for several projects, that is why we always pass the project as an argument.
   """
 
   require Logger
