@@ -14,9 +14,10 @@ defmodule MaintenanceJob.SampleJob do
 
   @year_month_url "https://raw.githubusercontent.com/maintenance-beam/sample_project/main/YEAR_MONTH.md"
 
-  import Maintenance, only: [is_project: 1, info: 1]
+  import Maintenance, only: [is_project: 1]
   import Maintenance.Project, only: [config: 2]
-  alias Maintenance.{Git, DB}
+  alias Maintenance.{Git, DB, Util}
+  use Util
 
   @behaviour MaintenanceJob
 
@@ -50,20 +51,20 @@ defmodule MaintenanceJob.SampleJob do
     cond do
       needs_update?(project, @job, db_value) == false ->
         if pr_exists? do
-          info("PR exists: no update needed [#{project}]: #{db_entry.url}")
+          Util.info("PR exists: no update needed [#{project}]: #{db_entry.url}")
         end
 
         {:ok, :no_update_needed}
 
       pr_exists? ->
-        info("PR exists: no update needed [#{project}]:  #{db_entry.url}")
+        Util.info("PR exists: no update needed [#{project}]:  #{db_entry.url}")
 
         {:ok, :no_update_needed}
 
       true ->
         fn_task_write_year_month = fn ->
           year_month_path = Path.join(Git.path(project), "YEAR_MONTH.md")
-          info("Writting YEAR_MONTH: #{year_month_path}")
+          Util.info("Writting YEAR_MONTH: #{year_month_path}")
 
           :ok = File.write(year_month_path, year_month_string)
           Git.add(project, year_month_path)
@@ -129,7 +130,7 @@ defmodule MaintenanceJob.SampleJob do
                "nothing to commit, working tree clean" <-
                  String.trim(msg) |> String.split("\n") |> List.last() do
             fn ->
-              info("Project is already up-to-date: " <> inspect(error))
+              Util.info("Project is already up-to-date: " <> inspect(error))
               {:ok, :no_update_needed}
             end
           else

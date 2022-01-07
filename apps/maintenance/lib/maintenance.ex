@@ -61,13 +61,6 @@ defmodule Maintenance do
   end
 
   @doc """
-  Logs `message` with info level.
-  """
-  def info(message) when is_binary(message) do
-    Logger.info(message)
-  end
-
-  @doc """
   List projects
   """
   @spec projects() :: nonempty_list(project)

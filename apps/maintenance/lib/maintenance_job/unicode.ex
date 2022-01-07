@@ -3,9 +3,10 @@ defmodule MaintenanceJob.Unicode do
   Updates the Unicode Character Database.
   """
 
-  import Maintenance, only: [is_project: 1, info: 1]
+  import Maintenance, only: [is_project: 1]
   import Maintenance.Project, only: [config: 1]
-  alias Maintenance.{Git, DB}
+  alias Maintenance.{Git, DB, Util}
+  use Util
 
   @behaviour MaintenanceJob
 
@@ -94,10 +95,10 @@ defmodule MaintenanceJob.Unicode do
   @spec update(Maintenance.project(), version(), contents()) :: MaintenanceJob.status()
   def update(project = :elixir, version, contents) do
     if pr_exists?(project, @job, version) do
-      info("PR exists: no update needed [#{project}]")
+      Util.info("PR exists: no update needed [#{project}]")
       {:ok, :no_update_needed}
     else
-      info("Writtings files in repo [#{project}]")
+      Util.info("Writtings files in repo [#{project}]")
 
       git_path = Git.path(project)
       unicode_dir = Path.join([git_path, "lib", "elixir", "unicode"])
@@ -157,10 +158,10 @@ defmodule MaintenanceJob.Unicode do
 
   def update(project = :otp, version, contents) do
     if pr_exists?(project, @job, version) do
-      info("PR exists: no update needed [#{project}, #{version}]")
+      Util.info("PR exists: no update needed [#{project}, #{version}]")
       {:ok, :no_update_needed}
     else
-      info("Writtings files in repo [#{project}, #{version}]")
+      Util.info("Writtings files in repo [#{project}, #{version}]")
 
       git_path = Git.path(project)
       unicode_spec_dir = Path.join([git_path, "lib", "stdlib", "uc_spec"])

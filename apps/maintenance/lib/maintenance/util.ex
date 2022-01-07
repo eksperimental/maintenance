@@ -3,6 +3,8 @@ defmodule Maintenance.Util do
   Convenience functions.
   """
 
+  require Logger
+
   defmacro __using__(_options \\ []) do
     quote do
       require Logger
@@ -50,5 +52,14 @@ defmodule Maintenance.Util do
       Logger.debug(inspect(output, limit: :infinity, printable_limit: :infinity))
       term
     end
+  end
+
+  @doc """
+  Logs `message` with info level.
+  """
+  def info(message) when is_binary(message) do
+    Logger.info(message)
+
+    message
   end
 end

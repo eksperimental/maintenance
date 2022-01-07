@@ -3,8 +3,9 @@ defmodule Maintenance.Git do
   Module that deals with the Git commands.
   """
 
-  import Maintenance, only: [is_project: 1, cache_path: 0, info: 1]
-  alias Maintenance.{DB, Project}
+  import Maintenance, only: [is_project: 1, cache_path: 0]
+  alias Maintenance.{DB, Project, Util}
+  use Util
 
   @type branch :: String.t()
 
@@ -72,17 +73,17 @@ defmodule Maintenance.Git do
 
     case get_last_cached_commit_id(project) do
       {:ok, ^last_commit_id} ->
-        info("Git repository already cached [#{project}]")
+        Util.info("Git repository already cached [#{project}]")
         {:ok, %{cached?: true}}
 
       {:ok, commit_id} when commit_id != nil ->
-        info("Updating Git repository [#{project}]")
+        Util.info("Updating Git repository [#{project}]")
         # Update repository
         :ok = update_repo(project)
         {:ok, %{cached?: false}}
 
       result when result in [{:ok, nil}, :error] ->
-        info("Creating Git repository [#{project}]")
+        Util.info("Creating Git repository [#{project}]")
         :ok = create_repo(project)
         {:ok, %{cached?: false}}
     end
@@ -310,18 +311,4 @@ defmodule Maintenance.Git do
       {:error, github_response}
     end
   end
-
-  ########################
-  # Helpers
-
-  # defp calculate_update(project) when is_project(project) do
-  #   {:ok, last_commit_id} = get_last_commit_id(project)
-  #   {:ok, last_cached_commit_id} = get_last_cached_commit_id(project)
-
-  #   %{
-  #     needs_update?: last_commit_id != last_cached_commit_id,
-  #     last_commit_id: last_commit_id,
-  #     last_cached_commit_id: last_cached_commit_id
-  #   }
-  # end
 end

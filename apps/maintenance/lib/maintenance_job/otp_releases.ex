@@ -15,9 +15,10 @@ defmodule MaintenanceJob.OtpReleases do
   @version_table_url "https://raw.githubusercontent.com/erlang/otp/master/otp_versions.table"
   @github_releases_url "https://api.github.com/repos/erlang/otp/releases?per_page=100"
 
-  import Maintenance, only: [is_project: 1, info: 1]
+  import Maintenance, only: [is_project: 1]
   import Maintenance.Project, only: [config: 2]
-  alias Maintenance.{Git, DB}
+  alias Maintenance.{Git, DB, Util}
+  use Util
 
   @behaviour MaintenanceJob
 
@@ -47,7 +48,7 @@ defmodule MaintenanceJob.OtpReleases do
     otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
 
     if needs_update?(project, @job, {:otp_versions_table, otp_versions_table_hash}) == false do
-      info(
+      Util.info(
         "PR exists: no update needed [#{project}]: " <> DB.get(:beam_langs_meta_data, @job).url
       )
 
@@ -68,7 +69,7 @@ defmodule MaintenanceJob.OtpReleases do
           |> :lists.reverse()
 
         json_path = Path.join(Git.path(project), "priv/otp_releases.json")
-        info("Writting opt releases: #{json_path}")
+        Util.info("Writting opt releases: #{json_path}")
 
         :ok = File.write(json_path, create_release_json(releases))
         Git.add(project, json_path)
@@ -119,7 +120,7 @@ defmodule MaintenanceJob.OtpReleases do
                "nothing to commit, working tree clean" <-
                  String.trim(msg) |> String.split("\n") |> List.last() do
             fn ->
-              info("Project is already up-to-date: " <> inspect(error))
+              Util.info("Project is already up-to-date: " <> inspect(error))
               {:ok, :no_update_needed}
             end
           else
