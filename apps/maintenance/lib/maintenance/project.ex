@@ -14,33 +14,36 @@ defmodule Maintenance.Project do
   # - maintenance-beam is the organization under which repositories are forked, and the PRs are created.
   # - maintenance-beam-app is the user that create the PRs. The GitHub token access belongs to this user.
   #     Also for dev/testing, the repositories are under maintenance-beam-app
+
+  @owner_dev "maintenance-beam-app"
+
   @project_configs %{
     elixir: %{
       main_branch: "main",
       owner_upstream: "elixir-lang",
       owner_origin: "maintenance-beam",
-      owner_dev: "maintenance-beam-app",
+      owner_dev: @owner_dev,
       repo: "elixir"
     },
     otp: %{
       main_branch: "master",
       owner_upstream: "erlang",
       owner_origin: "maintenance-beam",
-      owner_dev: "maintenance-beam-app",
+      owner_dev: @owner_dev,
       repo: "otp"
     },
     sample_project: %{
       main_branch: "main",
-      owner_upstream: "maintenance-beam-app",
-      owner_origin: "maintenance-beam-app",
-      owner_dev: "maintenance-beam-app",
+      owner_upstream: "maintenance-beam",
+      owner_origin: "maintenance-beam",
+      owner_dev: @owner_dev,
       repo: "sample_project"
     },
     beam_langs_meta_data: %{
       main_branch: "main",
       owner_upstream: "eksperimental",
       owner_origin: "maintenance-beam-app",
-      owner_dev: "maintenance-beam-app",
+      owner_dev: @owner_dev,
       repo: "beam_langs_meta_data"
     }
   }
