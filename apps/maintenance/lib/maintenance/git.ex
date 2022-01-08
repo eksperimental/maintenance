@@ -96,13 +96,14 @@ defmodule Maintenance.Git do
   def create_repo(project) when is_project(project) do
     config = Project.config(project)
 
-    with {_, 0} <-
+    with :ok <- config(project),
+         git_path <- path(project),
+          {_, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{Project.git_url(config, :upstream)} --branch #{config.main_branch} #{path(project)})
+             ~w(clone #{Project.git_url(config, :upstream)} --branch #{config.main_branch} #{path(project)}),
+             cd: git_path
            ),
-         :ok <- config(project),
-         git_path <- path(project),
          {_, 0} <- System.cmd("git", ~w(remote remove origin), cd: git_path),
          {_, 0} <-
            System.cmd(
