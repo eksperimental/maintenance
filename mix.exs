@@ -3,13 +3,21 @@ defmodule Maintenance.Umbrella.MixProject do
 
   def project do
     [
-      name: "Maintenance.Umbrella project",
       apps_path: "apps",
       version: "0.1.2",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
-      releases: releases()
+      releases: releases(),
+
+      # Docs
+      name: "Maintenance",
+      source_url: "https://github.com/eksperimental/maintenance",
+      homepage_url: "https://github.com/eksperimental/maintenance",
+      docs: [
+        ignore_apps: [:maintenance_web],
+        authors: ["Eksperimental"]
+      ]
     ]
   end
 
