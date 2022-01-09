@@ -281,7 +281,7 @@ defmodule Maintenance.Git do
              is_atom(job) and is_map(data) do
     config = Project.config(project)
 
-    push(project, Project.git_url(config, :upstream))
+    push(project, Project.git_url(config, :origin))
 
     client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token!()})
     {:ok, branch} = get_branch(project)
