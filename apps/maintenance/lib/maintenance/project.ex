@@ -19,13 +19,13 @@ defmodule Maintenance.Project do
   @owner_origin "maintenance-beam"
 
   @project_configs %{
-    # elixir: %{
-    #   main_branch: "main",
-    #   owner_upstream: "elixir-lang",
-    #   owner_upstream_dev: @owner_upstream_dev,
-    #   owner_origin: @owner_origin,
-    #   repo: "elixir"
-    # },
+    elixir: %{
+      main_branch: "main",
+      owner_upstream: "elixir-lang",
+      owner_upstream_dev: @owner_upstream_dev,
+      owner_origin: @owner_origin,
+      repo: "elixir"
+    },
     otp: %{
       main_branch: "master",
       owner_upstream: "erlang",
