@@ -16,34 +16,35 @@ defmodule Maintenance.Project do
   #     Also for dev/testing, the repositories are under maintenance-beam-app
 
   @owner_upstream_dev "maintenance-beam-app"
+  @owner_origin "maintenance-beam"
 
   @project_configs %{
     # elixir: %{
     #   main_branch: "main",
     #   owner_upstream: "elixir-lang",
     #   owner_upstream_dev: @owner_upstream_dev,
-    #   owner_origin: "maintenance-beam",
+    #   owner_origin: @owner_origin,
     #   repo: "elixir"
     # },
     # otp: %{
     #   main_branch: "master",
     #   owner_upstream: "erlang",
     #   owner_upstream_dev: @owner_upstream_dev,
-    #   owner_origin: "maintenance-beam",
+    #   owner_origin: @owner_origin,
     #   repo: "otp"
     # },
     sample_project: %{
       main_branch: "main",
       owner_upstream: "maintenance-beam",
       owner_upstream_dev: @owner_upstream_dev,
-      owner_origin: "maintenance-beam-app",
+      owner_origin: @owner_origin,
       repo: "sample_project"
     },
     beam_langs_meta_data: %{
       main_branch: "main",
       owner_upstream: "eksperimental",
       owner_upstream_dev: @owner_upstream_dev,
-      owner_origin: "maintenance-beam-app",
+      owner_origin: @owner_origin,
       repo: "beam_langs_meta_data"
     }
   }
