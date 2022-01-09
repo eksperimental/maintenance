@@ -82,25 +82,6 @@ config :maintenance, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-full_production? =
-  case System.get_env("MAINTENANCE_FULL_PRODUCTION") do
-    "yes" ->
-      true
-
-    "no" ->
-      false
-
-    nil ->
-      false
-
-    _ ->
-      raise(
-        "Only \"yes\" and \"not\" are accepted values for Env variable MAINTENANCE_FULL_PRODUCTION"
-      )
-  end
-
-config :maintenance, :full_production?, full_production?
-
 config_path =
   __DIR__
   |> Path.join("..")
