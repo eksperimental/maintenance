@@ -26,13 +26,13 @@ defmodule Maintenance.Project do
     #   owner_origin: @owner_origin,
     #   repo: "elixir"
     # },
-    # otp: %{
-    #   main_branch: "master",
-    #   owner_upstream: "erlang",
-    #   owner_upstream_dev: @owner_upstream_dev,
-    #   owner_origin: @owner_origin,
-    #   repo: "otp"
-    # },
+    otp: %{
+      main_branch: "master",
+      owner_upstream: "erlang",
+      owner_upstream_dev: @owner_upstream_dev,
+      owner_origin: @owner_origin,
+      repo: "otp"
+    },
     sample_project: %{
       main_branch: "main",
       owner_upstream: "maintenance-beam",
