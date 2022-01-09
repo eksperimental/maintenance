@@ -39,13 +39,13 @@ defmodule Maintenance.Project do
       owner_dev: @owner_dev,
       repo: "sample_project"
     },
-    # beam_langs_meta_data: %{
-    #   main_branch: "main",
-    #   owner_upstream: "eksperimental",
-    #   owner_origin: "maintenance-beam-app",
-    #   owner_dev: @owner_dev,
-    #   repo: "beam_langs_meta_data"
-    # }
+    beam_langs_meta_data: %{
+      main_branch: "main",
+      owner_upstream: "eksperimental",
+      owner_origin: "maintenance-beam-app",
+      owner_dev: @owner_dev,
+      repo: "beam_langs_meta_data"
+    }
   }
 
   @projects Map.keys(@project_configs)
