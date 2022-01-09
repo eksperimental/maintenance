@@ -3,11 +3,6 @@
 [`Maintenance` BEAM project](https://github.com/eksperimental/maintenance) is an app which aims to automatize tasks in codebases of the Elixir, Erlang, or any other project using a Git repository (only GitHub is initially supported).
 
 
-# Live version
-
-(https://maintenance.gigalixirapp.com)[https://maintenance.gigalixirapp.com]
-
-
 ## License
 
 No Copyright
