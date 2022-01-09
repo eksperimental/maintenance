@@ -56,8 +56,20 @@ defmodule Maintenance do
 
   @doc false
   def auth_url("https://" <> rest) do
-    github_account = Application.fetch_env!(@app_name, :github_account)
-    "https://#{github_account}:" <> github_access_token!() <> "@" <> rest
+    "https://" <> author_github_account() <> ":" <> github_access_token!() <> "@" <> rest
+  end
+
+  def author_github_account() do
+    Application.fetch_env!(@app_name, :author_github_account)
+  end
+
+  def author_name() do
+    Application.fetch_env!(@app_name, :author_name)
+  end
+
+  @doc false
+  def author_email() do
+    Application.fetch_env!(@app_name, :author_email)
   end
 
   @doc """

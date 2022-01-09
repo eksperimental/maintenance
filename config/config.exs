@@ -53,7 +53,7 @@ config :tentacat, :extra_headers, [{"Accept", "application/vnd.github.black-cat-
 
 config :maintenance, :git_repo_url, "https://github.com/eksperimental/maintenance"
 
-config :maintenance, github_account: "maintenance-beam-app"
+config :maintenance, :author_github_account, "maintenance-beam-app"
 config :maintenance, :author_name, "Maintenance App"
 config :maintenance, :author_email, "maintenance-beam@autistici.org"
 

@@ -15,9 +15,12 @@ defmodule Maintenance.Git do
     :ok = File.mkdir_p!(repo_path)
 
     with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
-         _ <- System.cmd("git", ["config", "user.name", "Maintenance App"], cd: repo_path),
          _ <-
-           System.cmd("git", ~w(config user.email maintenance-beam@autistici.org), cd: repo_path),
+           System.cmd("git", ["config", "user.name", "#{Maintenance.author_name()}"],
+             cd: repo_path
+           ),
+         _ <-
+           System.cmd("git", ~w(config user.email #{Maintenance.author_email()}), cd: repo_path),
          _ <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
          _ <- System.cmd("git", ~w(config fetch.fsckobjects true), cd: repo_path),
          _ <- System.cmd("git", ~w(config transfer.fsckobjects true), cd: repo_path),
