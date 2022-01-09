@@ -18,20 +18,20 @@ defmodule Maintenance.Project do
   @owner_dev "maintenance-beam-app"
 
   @project_configs %{
-    elixir: %{
-      main_branch: "main",
-      owner_upstream: "elixir-lang",
-      owner_origin: "maintenance-beam",
-      owner_dev: @owner_dev,
-      repo: "elixir"
-    },
-    otp: %{
-      main_branch: "master",
-      owner_upstream: "erlang",
-      owner_origin: "maintenance-beam",
-      owner_dev: @owner_dev,
-      repo: "otp"
-    },
+    # elixir: %{
+    #   main_branch: "main",
+    #   owner_upstream: "elixir-lang",
+    #   owner_origin: "maintenance-beam",
+    #   owner_dev: @owner_dev,
+    #   repo: "elixir"
+    # },
+    # otp: %{
+    #   main_branch: "master",
+    #   owner_upstream: "erlang",
+    #   owner_origin: "maintenance-beam",
+    #   owner_dev: @owner_dev,
+    #   repo: "otp"
+    # },
     sample_project: %{
       main_branch: "main",
       owner_upstream: "maintenance-beam",
@@ -39,13 +39,13 @@ defmodule Maintenance.Project do
       owner_dev: @owner_dev,
       repo: "sample_project"
     },
-    beam_langs_meta_data: %{
-      main_branch: "main",
-      owner_upstream: "eksperimental",
-      owner_origin: "maintenance-beam-app",
-      owner_dev: @owner_dev,
-      repo: "beam_langs_meta_data"
-    }
+    # beam_langs_meta_data: %{
+    #   main_branch: "main",
+    #   owner_upstream: "eksperimental",
+    #   owner_origin: "maintenance-beam-app",
+    #   owner_dev: @owner_dev,
+    #   repo: "beam_langs_meta_data"
+    # }
   }
 
   @projects Map.keys(@project_configs)

@@ -8,8 +8,8 @@ Type=simple
 Restart=always
 RestartSec=1
 User=noname
-# Environment="MAINTENANCE_FULL_PRODUCTION=yes"
 
+Environment="MAINTENANCE_FULL_PRODUCTION=yes"
 EnvironmentFile=/home/noname/env_vars
 
 ExecStart=/bin/bash -c '/home/noname/releases/${RELEASE}/bin/maintenance start'
