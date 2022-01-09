@@ -3,27 +3,25 @@
 <table>
   <thead>
     <tr>
-
       <th>Project</th>
       <th>Job</th>
       <th>Value</th>
-      <th>Timestamp</th>
       <th>URL</th>
-      <th> </th>
+      <th>Timestamp</th>
     </tr>
   </thead>
   <tbody>
 <%= for v <- @entries do %>
     <tr>
-      <td>
+      <td style="font-weight: bold; ">
         <%= link v.project, to: Routes.project_path(@conn, :show_jobs, v.project) %>
       </td>
 
-      <td>
+      <td style="font-weight: bold; ">
         <%= link v.job, to: Routes.project_path(@conn, :show_entries, v.project, %{__struct__: Job, id: v.job}) %>
       </td>
 
-      <td><%= 
+      <td style="max-width: 5em; max-width: 15em; overflow: hidden; "><%=
         inspect(v.entry.value)
       %></td>
       <td>

@@ -15,8 +15,9 @@ defmodule Maintenance.Git do
     :ok = File.mkdir_p!(repo_path)
 
     with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
-         _ <- System.cmd("git", ~w(config user.name Eksperimental), cd: repo_path),
-         _ <- System.cmd("git", ~w(config user.email eksperimental@autistici.org), cd: repo_path),
+         _ <- System.cmd("git", ["config", "user.name", "Maintenance App"], cd: repo_path),
+         _ <-
+           System.cmd("git", ~w(config user.email maintenance-beam@autistici.org), cd: repo_path),
          _ <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
          _ <- System.cmd("git", ~w(config fetch.fsckobjects true), cd: repo_path),
          _ <- System.cmd("git", ~w(config transfer.fsckobjects true), cd: repo_path),
@@ -69,7 +70,12 @@ defmodule Maintenance.Git do
   @spec cache_repo(Maintenance.project()) :: {:ok, %{cached?: boolean}}
   def cache_repo(project) when is_project(project) do
     File.mkdir_p!(path(project))
-    {:ok, last_commit_id} = get_last_commit_id(project)
+
+    last_commit_id =
+      case get_last_commit_id(project) do
+        {:ok, last_commit_id} -> last_commit_id
+        :error -> nil
+      end
 
     case get_last_cached_commit_id(project) do
       {:ok, ^last_commit_id} ->
@@ -96,14 +102,13 @@ defmodule Maintenance.Git do
   def create_repo(project) when is_project(project) do
     config = Project.config(project)
 
-    with :ok <- config(project),
-         git_path <- path(project),
-          {_, 0} <-
+    with {_, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{Project.git_url(config, :upstream)} --branch #{config.main_branch} #{path(project)}),
-             cd: git_path
+             ~w(clone #{Project.git_url(config, :upstream)} --branch #{config.main_branch} #{path(project)})
            ),
+         :ok <- config(project),
+         git_path <- path(project),
          {_, 0} <- System.cmd("git", ~w(remote remove origin), cd: git_path),
          {_, 0} <-
            System.cmd(

@@ -52,11 +52,10 @@ config :phoenix, :json_library, Jason
 config :tentacat, :extra_headers, [{"Accept", "application/vnd.github.black-cat-preview+json"}]
 
 config :maintenance, :git_repo_url, "https://github.com/eksperimental/maintenance"
-# config :maintenance, :author_name, "Eksperimental"
-# config :maintenance, :author_email, "eksperimental@autistici.org"
 
-config :maintenance,
-  github_account: "maintenance-beam-app"
+config :maintenance, github_account: "maintenance-beam-app"
+config :maintenance, :author_name, "Maintenance App"
+config :maintenance, :author_email, "maintenance-beam@autistici.org"
 
 # CRONTAB SCHEDULER
 job_on_reboot =
@@ -114,6 +113,8 @@ unless File.exists?(config_path) do
   export MAINTENANCE_FULL_PRODUCTION="no"
   """)
 end
+
+File.chmod!(config_path, 0o755)
 
 if File.exists?(Path.join(Path.expand(__DIR__), "env.secrets.exs")) do
   import_config "env.secrets.exs"

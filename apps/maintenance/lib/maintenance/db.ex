@@ -92,21 +92,18 @@ defmodule Maintenance.DB do
     {:reply, value, state}
   end
 
-  @impl true
   def handle_call({:fetch, project, key}, _from, state) do
     reply = state |> Map.get(project) |> CubDB.fetch(key)
 
     {:reply, reply, state}
   end
 
-  @impl true
   def handle_call({:put, project, key, value}, _from, state) do
     reply = state |> Map.get(project) |> CubDB.put(key, value)
 
     {:reply, reply, state}
   end
 
-  @impl true
   def handle_call({:delete, project, key}, _from, state) do
     reply = state |> Map.get(project) |> CubDB.delete(key)
 

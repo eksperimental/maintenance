@@ -35,7 +35,7 @@ defmodule Maintenance.Project do
     sample_project: %{
       main_branch: "main",
       owner_upstream: "maintenance-beam",
-      owner_origin: "maintenance-beam",
+      owner_origin: "maintenance-beam-app",
       owner_dev: @owner_dev,
       repo: "sample_project"
     },
