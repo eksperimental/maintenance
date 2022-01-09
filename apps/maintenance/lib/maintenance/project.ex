@@ -8,42 +8,42 @@ defmodule Maintenance.Project do
   # Add new projects here
   @type t :: :sample_project | :elixir | :otp | :beam_langs_meta_data
 
-  @typep remote :: :upstream | :origin | :dev
+  @typep remote :: :upstream | :upstream_dev | :origin
 
   # NOTE:
   # - maintenance-beam is the organization under which repositories are forked, and the PRs are created.
   # - maintenance-beam-app is the user that create the PRs. The GitHub token access belongs to this user.
   #     Also for dev/testing, the repositories are under maintenance-beam-app
 
-  @owner_dev "maintenance-beam-app"
+  @owner_upstream_dev "maintenance-beam-app"
 
   @project_configs %{
     # elixir: %{
     #   main_branch: "main",
     #   owner_upstream: "elixir-lang",
+    #   owner_upstream_dev: @owner_upstream_dev,
     #   owner_origin: "maintenance-beam",
-    #   owner_dev: @owner_dev,
     #   repo: "elixir"
     # },
     # otp: %{
     #   main_branch: "master",
     #   owner_upstream: "erlang",
+    #   owner_upstream_dev: @owner_upstream_dev,
     #   owner_origin: "maintenance-beam",
-    #   owner_dev: @owner_dev,
     #   repo: "otp"
     # },
     sample_project: %{
       main_branch: "main",
       owner_upstream: "maintenance-beam",
+      owner_upstream_dev: @owner_upstream_dev,
       owner_origin: "maintenance-beam-app",
-      owner_dev: @owner_dev,
       repo: "sample_project"
     },
     beam_langs_meta_data: %{
       main_branch: "main",
       owner_upstream: "eksperimental",
+      owner_upstream_dev: @owner_upstream_dev,
       owner_origin: "maintenance-beam-app",
-      owner_dev: @owner_dev,
       repo: "beam_langs_meta_data"
     }
   }
@@ -55,8 +55,8 @@ defmodule Maintenance.Project do
   build_config = fn %{
                       main_branch: main_branch,
                       owner_upstream: owner_upstream,
+                      owner_upstream_dev: owner_upstream_dev,
                       owner_origin: owner_origin,
-                      owner_dev: owner_dev,
                       repo: repo
                     } ->
     %{
@@ -64,13 +64,13 @@ defmodule Maintenance.Project do
       repo: repo,
       owner: %{
         upstream: owner_upstream,
-        origin: owner_origin,
-        dev: owner_dev
+        upstream_dev: owner_upstream_dev,
+        origin: owner_origin
       },
       git_url: %{
         upstream: "https://github.com/#{owner_upstream}/#{repo}",
-        origin: "https://github.com/#{owner_origin}/#{repo}",
-        dev: "https://github.com/#{owner_dev}/#{repo}"
+        upstream_dev: "https://github.com/#{owner_upstream_dev}/#{repo}",
+        origin: "https://github.com/#{owner_origin}/#{repo}"
       }
     }
   end
@@ -122,7 +122,7 @@ defmodule Maintenance.Project do
     git_url(config, remote)
   end
 
-  def git_url(config, remote) when is_map(config) and remote in [:dev, :origin] do
+  def git_url(config, remote) when is_map(config) and remote in [:upstream_dev, :origin] do
     Map.get(config.git_url, remote)
   end
 
@@ -130,7 +130,7 @@ defmodule Maintenance.Project do
     if Maintenance.full_production?() do
       config.git_url.upstream
     else
-      config.git_url.dev
+      config.git_url.upstream_dev
     end
   end
 
@@ -146,7 +146,7 @@ defmodule Maintenance.Project do
     owner(config, remote)
   end
 
-  def owner(config, remote) when is_map(config) and remote in [:dev, :origin] do
+  def owner(config, remote) when is_map(config) and remote in [:upstream_dev, :origin] do
     Map.get(config.owner, remote)
   end
 
@@ -154,7 +154,7 @@ defmodule Maintenance.Project do
     if Maintenance.full_production?() do
       config.owner.upstream
     else
-      config.owner.dev
+      config.owner.upstream_dev
     end
   end
 end

@@ -57,7 +57,6 @@ if config_env() == :prod do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
-
 full_production? =
   case System.get_env("MAINTENANCE_FULL_PRODUCTION") do
     "yes" ->
