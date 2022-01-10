@@ -91,6 +91,15 @@ defmodule MaintenanceJob.Unicode do
     }
   end
 
+  # ELIXIR: The steps for creating the PR, are described at the top of the String.Unicode module source code:
+  # https://github.com/elixir-lang/elixir/blob/main/lib/elixir/unicode/unicode.ex
+  #
+  # How to update the Unicode files
+  # Unicode files can be found in https://www.unicode.org/Public/
+  # 1. Replace UnicodeData.txt by copying original
+  # 2. Replace PropList.txt by copying original
+  # 3. Replace SpecialCasing.txt by copying original and removing conditional mappings
+  # 4. Update String.Unicode.version/0 and on String module docs (version and link)
   @doc false
   @spec update(Maintenance.project(), version(), contents()) :: MaintenanceJob.status()
   def update(project = :elixir, version, contents) do
@@ -104,6 +113,8 @@ defmodule MaintenanceJob.Unicode do
       unicode_dir = Path.join([git_path, "lib", "elixir", "unicode"])
       elixir_dir = Path.join([git_path, "lib", "elixir"])
 
+      # Replace UnicodeData.txt by copying original
+      # Replace PropList.txt by copying original
       fn_tasks =
         for {dir, file_name} <- [
               {unicode_dir, "UnicodeData.txt"},
@@ -137,7 +148,7 @@ defmodule MaintenanceJob.Unicode do
         File.write(string_unicode_module_path, string_unicode_module)
       end
 
-      # Update String module docs (version and link)
+      # Update String.Unicode.version/0 and on String module docs (version and link)
       fn_task_string_module = fn ->
         string_module_path = Path.join([elixir_dir, "lib", "string.ex"])
 
@@ -156,6 +167,53 @@ defmodule MaintenanceJob.Unicode do
     end
   end
 
+  # OTP: There is no specific documentation on how to update to a new Unicode version,
+  # the closes to this is https://github.com/erlang/otp/blob/master/lib/stdlib/uc_spec/README-UPDATE.txt
+  # the main source of information is the escript that builds the unicode module:
+  # https://github.com/erlang/otp/blob/master/lib/stdlib/uc_spec/gen_unicode_mod.escript
+  # https://github.com/erlang/otp/blob/master/lib/stdlib/test/io_proto_SUITE.erl
+  # 
+  # When updating the Unicode version please follow these steps:
+  # 
+  # The latest vesrion of the Unicode Character Database can be found at
+  # https://www.unicode.org/Public/UCD/latest/ucd/
+  # 
+  # 1. Copy the following files to lib/stdlib/uc_spec/ replacing existing ones.
+  # Nosubfolder should be created.
+  #   - CaseFolding.txt
+  #   - CompositionExclusions.txt
+  #   - PropList.txt
+  #   - SpecialCasing.txt
+  #   - UnicodeData.txt
+  #   - auxiliary/GraphemeBreakProperty.txt
+  #   - emoji/emoji-data.txt
+  # 
+  # 2. Copy the following test files to lib/stdlib/test/unicode_util_SUITE_data/
+  # replacing existing ones. No subfolder should be created.
+  #   - NormalizationTest.txt
+  #   - auxiliary/GraphemeBreakTest.txt
+  #   - auxiliary/LineBreakTest.txt
+  # 
+  # 3. Update the "spec_version()" function in the generator by replacing the Unicode
+  # version in lib/stdlib/uc_spec/gen_unicode_mod.escript
+  # 
+  # 4. Read the realease notes by visiting https://www.unicode.org/versions/latest/
+  # and assess if additional changes are necessary in the Erlang code.
+  # 
+  # 5. Replace all ocurrences of previous version of Unicode with the new one in
+  # this very same file (lib/stdlib/uc_spec/README-UPDATE.txt).
+  # Remember to update these instructions if a new file is added or any other change
+  # is required for future version updates.
+  # 
+  # 6. Run the test for the Unicode suite from the OTP repository root dir.
+  #    $ export ERL_TOP=$PWD
+  #    $ export PATH=$ERL_TOP/bin:$PATH
+  #    $ ./otp_build all -a && ./otp_build tests
+  #    $ cd release/tests/test_server
+  #    $ erl
+  #    erl> ts:install().
+  #    erl> ts:run(stdlib, unicode_SUITE, [batch]).
+  # 
   def update(project = :otp, version, contents) do
     if pr_exists?(project, @job, version) do
       Util.info("PR exists: no update needed [#{project}, #{version}]")
@@ -165,20 +223,24 @@ defmodule MaintenanceJob.Unicode do
 
       git_path = Git.path(project)
       unicode_spec_dir = Path.join([git_path, "lib", "stdlib", "uc_spec"])
+
       unicode_test_dir = Path.join([git_path, "lib", "stdlib", "test", "unicode_util_SUITE_data"])
 
       fn_tasks =
         for {dir, file_name} <- [
+              # lib/stdlib/uc_spec/
               {unicode_spec_dir, "CaseFolding.txt"},
               {unicode_spec_dir, "CompositionExclusions.txt"},
               {unicode_spec_dir, "PropList.txt"},
               {unicode_spec_dir, "SpecialCasing.txt"},
               {unicode_spec_dir, "UnicodeData.txt"},
+              {unicode_spec_dir, "auxiliary/GraphemeBreakProperty.txt"},
               {unicode_spec_dir, "emoji/emoji-data.txt"},
-              {unicode_test_dir, "auxiliary/GraphemeBreakProperty.txt"},
+
+              # lib/stdlib/test/unicode_util_SUITE_data/
+              {unicode_test_dir, "NormalizationTest.txt"},
               {unicode_test_dir, "auxiliary/GraphemeBreakTest.txt"},
-              {unicode_test_dir, "auxiliary/LineBreakTest.txt"},
-              {unicode_test_dir, "NormalizationTest.txt"}
+              {unicode_test_dir, "auxiliary/LineBreakTest.txt"}
             ] do
           fn ->
             File.write!(
@@ -272,6 +334,10 @@ defmodule MaintenanceJob.Unicode do
 
     This is an automated commit created by the Maintenance project
     #{Maintenance.git_repo_url()}
+
+    Before merging, please read the realease notes by visiting
+    <http://www.unicode.org/versions/Unicode#{unicode_version}/>
+    and assess if additional changes are necessary in the code base.
     """
   end
 
@@ -338,6 +404,8 @@ defmodule MaintenanceJob.Unicode do
   Get the UCD zipped file.
 
   If it has been previously retrieved, it will be obtained from the cache.
+  The file zip file is received and stored as a map, where the key of every entry
+  is the relative path within the zip file.
   """
   @spec get_ucd(version) :: {:ok, contents} | {:error, Mint.Types.status()}
   def get_ucd(version) when is_version(version) do
