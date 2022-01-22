@@ -1,4 +1,13 @@
 defmodule MaintenanceJob.OtpReleases do
+  # COPYRIGHT NOTICE: 
+  # Some functions in the this module have been adapted and ported from Erlang into Elixir by the author,
+  # taken from the source code of the erlang.org website:
+  # https://github.com/erlang/erlang-org
+  # See the /NOTICE file for more information about the copyright holders and the license.
+  # The files where the code has been taken are:
+  # https://github.com/erlang/erlang-org/blob/39521fb11b3545d69bc26e4a5a9b02995a0f4e49/_scripts/src/create-releases.erl
+  # https://github.com/erlang/erlang-org/blob/39521fb11b3545d69bc26e4a5a9b02995a0f4e49/_scripts/src/gh.erl
+
   @moduledoc """
   OTP Releases job.
   """

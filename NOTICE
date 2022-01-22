@@ -1,0 +1,39 @@
+LEGAL NOTICE INFORMATION
+------------------------
+
+Some files in this distribution are copyright to the terms below.
+
+
+== /apps/maintenance/lib/maintenance_job/otp_releases.ex
+
+Portions of this file have been ported to Elixir from original source code in Erlang,
+taken from the following files:
+  <https://github.com/erlang/erlang-org/blob/39521fb11b3545d69bc26e4a5a9b02995a0f4e49/_scripts/src/create-releases.erl>
+  <https://github.com/erlang/erlang-org/blob/39521fb11b3545d69bc26e4a5a9b02995a0f4e49/_scripts/src/gh.erl>
+
+Copyright 2021 Copyright Ericsson AB
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+== All other files.
+
+No Copyright
+
+This work is released to the Public Domain <https://creativecommons.org/publicdomain/mark/1.0/>
+and multi-licensed under the Creative Commons Zero Universal version 1.0 license
+<https://creativecommons.org/publicdomain/zero/1.0/>,
+the MIT No Attribution license <https://opensource.org/licenses/MIT-0>,
+and the BSD Zero Clause license <https://opensource.org/licenses/0BSD>.
+
+You can choose between one of them if you use this work.
