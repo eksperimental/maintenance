@@ -29,8 +29,7 @@ defmodule Maintenance.Umbrella.MixProject do
 
   defp deps do
     [
-      # {:ex_doc, "~> 0.27", only: :dev, runtime: false},
-      {:ex_doc, git: "https://github.com/elixir-lang/ex_doc.git", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.28", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false}
     ]
   end
@@ -96,7 +95,7 @@ defmodule Maintenance.Umbrella.MixProject do
       authors: ["Eksperimental"],
       extras: [
         "README.md": [filename: "readme", title: "Readme"],
-        # "NOTICE": [filename: "notice", title: "Notice"],
+        NOTICE: [filename: "notice", title: "Notice"],
         "LICENSES/LICENSE.CC0-1.0.txt": [
           filename: "license_CC0-1.0",
           title: "Creative Commons Zero Universal version 1.0 License"
