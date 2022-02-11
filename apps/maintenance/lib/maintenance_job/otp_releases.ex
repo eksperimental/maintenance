@@ -12,8 +12,14 @@ defmodule MaintenanceJob.OtpReleases do
   OTP Releases job.
   """
 
-  alias Maintenance.{Git, Util}
-  use Util
+  @behaviour MaintenanceJob
+
+  use Maintenance.Util
+
+  import Maintenance, only: [is_project: 1]
+  import Maintenance.Project, only: [config: 2]
+
+  alias Maintenance.{Git, DB, Util}
 
   @job :otp_releases
   # 5 minutes
@@ -59,13 +65,6 @@ defmodule MaintenanceJob.OtpReleases do
 
   # @all_accepted_keys (@otp_accepted_keys ++ @assets_accepted_keys) |> Enum.uniq()
 
-  import Maintenance, only: [is_project: 1]
-  import Maintenance.Project, only: [config: 2]
-  alias Maintenance.{Git, DB, Util}
-  use Util
-
-  @behaviour MaintenanceJob
-
   @type response :: %Finch.Response{}
   @type response_status :: pos_integer()
   @type contents :: %{required(file_name :: String.t()) => file_contents :: String.t()}
@@ -98,7 +97,7 @@ defmodule MaintenanceJob.OtpReleases do
 
       {:ok, :no_update_needed}
     else
-      fn_task_write_foo = fn ->
+      fn_task_write_otp_versions_table = fn ->
         versions = parse_otp_versions_table(otp_versions_table)
         downloads = parse_erlang_org_downloads()
         tags = parse_github_tags()
@@ -141,7 +140,7 @@ defmodule MaintenanceJob.OtpReleases do
         # IO.inspect(releases)
 
         json_path = Path.join(Git.path(project), "priv/otp_releases.json")
-        Util.info("Writting opt releases: #{json_path}")
+        Util.info("Writting OTP releases: #{json_path}")
 
         :ok = File.write(json_path, create_release_json(releases))
         Git.add(project, json_path)
@@ -150,7 +149,7 @@ defmodule MaintenanceJob.OtpReleases do
         {:otp_versions_table, otp_versions_table_hash}
       end
 
-      run_tasks(project, [fn_task_write_foo])
+      run_tasks(project, [fn_task_write_otp_versions_table])
     end
   end
 
@@ -367,7 +366,7 @@ defmodule MaintenanceJob.OtpReleases do
 
         erlang_org_download
         |> convert_keys_to_atoms()
-        |> filter_keys(:otp)
+        |> filter_keys(:assets)
         |> Map.merge(%{
           created_at: commit_date_time,
           name: patch_vsn,
@@ -392,6 +391,7 @@ defmodule MaintenanceJob.OtpReleases do
           download_urls: fetch_urls(assets)
         })
     end
+
     # |> rename_keys()
   end
 
