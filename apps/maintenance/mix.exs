@@ -43,7 +43,9 @@ defmodule Maintenance.MixProject do
       {:tentacat, "~> 2.0"},
       {:cubdb, "~> 1.1.0"},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:quantum, "~> 3.0"}
+      {:quantum, "~> 3.0"},
+      {:beam_langs_meta_data,
+       git: "https://github.com/eksperimental/beam_langs_meta_data/", branch: "main"}
     ]
   end
 
