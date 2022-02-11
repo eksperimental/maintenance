@@ -65,13 +65,15 @@ defmodule Maintenance.Umbrella.MixProject do
 
   defp test_isolated() do
     fn _args ->
-      case System.cmd("mix", ~w[test]) do
-        {_, 0} ->
-          true
+      env = %{"MIX_ENV" => "test"}
 
-        {output, _} ->
+      with {:"test setup", {_, 0}} <- {:"test setup", System.cmd("mix", ~w[setup], env: env)},
+           {:test, {_, 0}} <- {:test, System.cmd("mix", ~w[test], env: env)} do
+        true
+      else
+        {type, {output, _}} ->
           IO.puts(output)
-          raise("Test failed.")
+          raise("#{type} failed.")
       end
     end
   end
