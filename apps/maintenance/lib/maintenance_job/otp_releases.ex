@@ -87,70 +87,70 @@ defmodule MaintenanceJob.OtpReleases do
   @impl MaintenanceJob
   @spec update(Maintenance.project()) :: MaintenanceJob.status()
   def update(project) when is_project(project) do
-    {:ok, otp_versions_table} = get_versions_table()
-    otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
+    {releases_json, releases_json_hash} = releases_json()
 
-    if needs_update?(project, @job, {:otp_versions_table, otp_versions_table_hash}) == false do
+    if needs_update?(project, @job, {:otp_releases, releases_json_hash}) == false do
       Util.info(
         "PR exists: no update needed [#{project}]: " <> DB.get(:beam_langs_meta_data, @job).url
       )
 
       {:ok, :no_update_needed}
     else
-      fn_task_write_otp_versions_table = fn ->
-        versions = parse_otp_versions_table(otp_versions_table)
-        downloads = parse_erlang_org_downloads()
-        tags = parse_github_tags()
-
-        {:ok, gh_releases} = gh_get(@github_releases_url)
-
-        patches_downloads =
-          downloads
-          |> Map.keys()
-
-        patches_gh_releases =
-          for map <- gh_releases do
-            map["tag_name"]
-            |> String.trim_leading("OTP-")
-            |> String.trim_leading("OTP_")
-          end
-
-        # versions ++ versions2 ++ versions3
-        new_versions =
-          for {major, patches} <- versions do
-            new_patches =
-              (patches ++
-                 filter_patches_by_major(patches_downloads, major) ++
-                 filter_patches_by_major(patches_gh_releases, major))
-              |> Enum.uniq()
-              |> Enum.sort(:desc)
-
-            {major, new_patches}
-          end
-
-        # |> Enum.sort(:desc)
-
-        # IO.inspect(new_versions)
-        releases =
-          for {major, patches} <- new_versions do
-            process_patches(major, patches, downloads, tags, gh_releases)
-          end
-          |> :lists.reverse()
-
-        # IO.inspect(releases)
-
+      fn_task_write_otp_releases = fn ->
         json_path = Path.join(Git.path(project), "priv/otp_releases.json")
         Util.info("Writting OTP releases: #{json_path}")
 
-        :ok = File.write(json_path, create_release_json(releases))
+        :ok = File.write(json_path, releases_json)
         Git.add(project, json_path)
 
-        otp_versions_table_hash = Util.hash(String.trim(otp_versions_table))
-        {:otp_versions_table, otp_versions_table_hash}
+        {:otp_releases, releases_json_hash}
       end
 
-      run_tasks(project, [fn_task_write_otp_versions_table])
+      run_tasks(project, [fn_task_write_otp_releases])
     end
+  end
+
+  defp releases_json() do
+    {:ok, otp_versions_table} = get_versions_table()
+    versions = parse_otp_versions_table(otp_versions_table)
+    downloads = parse_erlang_org_downloads()
+    tags = parse_github_tags()
+
+    {:ok, gh_releases} = gh_get(@github_releases_url)
+
+    patches_downloads =
+      downloads
+      |> Map.keys()
+
+    patches_gh_releases =
+      for map <- gh_releases do
+        map["tag_name"]
+        |> String.trim_leading("OTP-")
+        |> String.trim_leading("OTP_")
+      end
+
+    new_versions =
+      for {major, patches} <- versions do
+        new_patches =
+          (patches ++
+             filter_patches_by_major(patches_downloads, major) ++
+             filter_patches_by_major(patches_gh_releases, major))
+          |> Enum.uniq()
+          |> Enum.sort(:desc)
+
+        {major, new_patches}
+      end
+      |> :lists.reverse()
+
+    releases =
+      for {major, patches} <- new_versions do
+        process_patches(major, patches, downloads, tags, gh_releases)
+      end
+
+    releases_json = create_release_json(releases)
+    releases_json_hash = Util.hash(releases_json)
+
+    {releases_json, releases_json_hash}
   end
 
   defp filter_patches_by_major(patches, major) do
@@ -171,7 +171,7 @@ defmodule MaintenanceJob.OtpReleases do
       when is_list(tasks) do
     {:ok, _new_branch, previous_branch} = checkout_new_branch(project)
 
-    [ok: {:otp_versions_table, otp_versions_table_hash}] =
+    [ok: {:otp_releases, otp_releases_hash}] =
       tasks
       |> Task.async_stream(& &1.(), timeout: :infinity)
       |> Enum.to_list()
@@ -179,7 +179,7 @@ defmodule MaintenanceJob.OtpReleases do
     pr_data = %{
       title: "Update OTP releases",
       db_key: @job,
-      db_value: {:otp_versions_table, otp_versions_table_hash}
+      db_value: {:otp_releases, otp_releases_hash}
     }
 
     # Commit
