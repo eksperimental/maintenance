@@ -1,5 +1,5 @@
 defmodule MaintenanceJob.ElixirReleases do
-  # COPYRIGHT NOTICE: 
+  # COPYRIGHT NOTICE:
   # Some functions in the this module have been adapted and ported from Erlang into Elixir by the author,
   # taken from the source code of the erlang.org website:
   # https://github.com/elixir-lang/erlang-org
@@ -179,7 +179,7 @@ defmodule MaintenanceJob.ElixirReleases do
   end
 
   def build_releases(list) do
-    list_converted = convert_keys_to_atoms(list)
+    list_converted = Util.convert_keys_to_atoms(list)
 
     pre_filtered =
       Enum.reject(list_converted, fn json_entry ->
@@ -214,24 +214,4 @@ defmodule MaintenanceJob.ElixirReleases do
     end
     |> :lists.reverse()
   end
-
-  defp convert_keys_to_atoms(term) when is_list(term) or is_map(term) do
-    Enum.reduce(term, into(term), fn
-      {k, v}, acc ->
-        into(acc, {:"#{k}", convert_keys_to_atoms(v)})
-
-      elem, acc ->
-        into(acc, convert_keys_to_atoms(elem))
-    end)
-  end
-
-  defp convert_keys_to_atoms(term) do
-    term
-  end
-
-  defp into(term) when is_map(term), do: %{}
-  defp into(term) when is_list(term), do: []
-
-  defp into(acc, {k, v}) when is_map(acc), do: Map.put(acc, k, v)
-  defp into(acc, elem) when is_list(acc), do: [elem | acc]
 end

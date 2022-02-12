@@ -5,6 +5,7 @@ Some files in this distribution are copyright to the terms below.
 
 
 == /apps/maintenance/lib/maintenance_job/otp_releases.ex
+== /apps/maintenance/lib/maintenance/github.ex
 
 Portions of this file have been ported to Elixir from original source code in Erlang,
 taken from the following files:

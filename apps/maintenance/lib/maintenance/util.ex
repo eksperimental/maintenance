@@ -62,4 +62,31 @@ defmodule Maintenance.Util do
 
     message
   end
+
+  # Converts they keys of an enumerable to atoms.
+  @doc false
+  @spec convert_keys_to_atoms(any()) :: any()
+  def convert_keys_to_atoms(term) when is_list(term) or is_map(term) do
+    Enum.reduce(term, into(term), fn
+      {k, v}, acc ->
+        into(acc, {:"#{k}", convert_keys_to_atoms(v)})
+
+      elem, acc ->
+        into(acc, convert_keys_to_atoms(elem))
+    end)
+
+    # |> Enum.reverse()
+  end
+
+  def convert_keys_to_atoms(term) do
+    term
+  end
+
+  @doc false
+  def into(term) when is_map(term), do: %{}
+  def into(term) when is_list(term), do: []
+
+  @doc false
+  def into(acc, {k, v}) when is_map(acc), do: Map.put(acc, k, v)
+  def into(acc, elem) when is_list(acc), do: [elem | acc]
 end

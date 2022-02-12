@@ -1,5 +1,5 @@
 defmodule MaintenanceJob.OtpReleases do
-  # COPYRIGHT NOTICE: 
+  # COPYRIGHT NOTICE:
   # Some functions in the this module have been adapted and ported from Erlang into Elixir by the author,
   # taken from the source code of the erlang.org website:
   # https://github.com/erlang/erlang-org
@@ -19,11 +19,9 @@ defmodule MaintenanceJob.OtpReleases do
   import Maintenance, only: [is_project: 1]
   import Maintenance.Project, only: [config: 2]
 
-  alias Maintenance.{Git, DB, Util}
+  alias Maintenance.{Git, Github, DB, Util}
 
   @job :otp_releases
-  # 5 minutes
-  @req_options [receive_timeout: 60_000 * 5]
 
   @erlang_download_url "https://erlang.org/download/"
   @github_tags_url "https://api.github.com/repos/erlang/otp/tags?per_page=100"
@@ -62,8 +60,6 @@ defmodule MaintenanceJob.OtpReleases do
     state
     url
   )a
-
-  # @all_accepted_keys (@otp_accepted_keys ++ @assets_accepted_keys) |> Enum.uniq()
 
   @type response :: %Finch.Response{}
   @type response_status :: pos_integer()
@@ -116,7 +112,7 @@ defmodule MaintenanceJob.OtpReleases do
     downloads = parse_erlang_org_downloads()
     tags = parse_github_tags()
 
-    {:ok, gh_releases} = gh_get(@github_releases_url)
+    {:ok, gh_releases} = Github.get!(@github_releases_url)
 
     patches_downloads =
       downloads
@@ -271,7 +267,7 @@ defmodule MaintenanceJob.OtpReleases do
     end
   end
 
-  def parse_otp_versions_table(versions_table) do
+  defp parse_otp_versions_table(versions_table) do
     lines =
       versions_table
       |> String.trim()
@@ -308,7 +304,7 @@ defmodule MaintenanceJob.OtpReleases do
     win64: ~R{^otp_win64_(.*)\.exe$}s
   }
 
-  def parse_erlang_org_downloads() do
+  defp parse_erlang_org_downloads() do
     {:ok, the_downloads} = get_downloads()
     downloads = Regex.scan(~r{<a href="([^"/]+)"}, the_downloads, capture: :all_but_first)
 
@@ -336,20 +332,14 @@ defmodule MaintenanceJob.OtpReleases do
     end
   end
 
-  def process_patches(major, patches, downloads, tags, releases) do
+  defp process_patches(major, patches, downloads, tags, releases) do
     new_patches = pmap(patches, &process_patch(&1, releases, downloads, tags))
     complete_patches = Enum.filter(new_patches, &is_map_key(&1, :tag_name))
-
-    # x = Enum.reject(new_patches, &is_map_key(&1, :tag_name))
-    # if x != [] do
-    #   IO.inspect({__ENV__.line, x})
-    #   exit :tag_name
-    # end
 
     %{patches: complete_patches, latest: List.first(complete_patches), release: major}
   end
 
-  def process_patch(patch_vsn, releases, downloads, tags) do
+  defp process_patch(patch_vsn, releases, downloads, tags) do
     erlang_org_download = Map.get(downloads, patch_vsn, %{})
 
     case Enum.find(releases, fn release ->
@@ -365,7 +355,7 @@ defmodule MaintenanceJob.OtpReleases do
         {:ok, commit_date_time} = Git.get_ref_date_time(:otp, commit_id)
 
         erlang_org_download
-        |> convert_keys_to_atoms()
+        |> Util.convert_keys_to_atoms()
         |> filter_keys(:assets)
         |> Map.merge(%{
           created_at: commit_date_time,
@@ -377,11 +367,11 @@ defmodule MaintenanceJob.OtpReleases do
 
       json ->
         {assets, json} = Map.pop(json, "assets", [])
-        assets = assets |> convert_keys_to_atoms() |> filter_keys(:assets)
+        assets = assets |> Util.convert_keys_to_atoms() |> filter_keys(:assets)
 
         erlang_org_download
         |> Map.merge(json)
-        |> convert_keys_to_atoms()
+        |> Util.convert_keys_to_atoms()
         # |> tap(&IO.inspect({__ENV__.line, &1, limit: :infinity}))
         |> filter_keys(:otp)
         # |> tap(&IO.inspect({__ENV__.line, &1, limit: :infinity}))
@@ -391,25 +381,7 @@ defmodule MaintenanceJob.OtpReleases do
           download_urls: fetch_urls(assets)
         })
     end
-
-    # |> rename_keys()
   end
-
-  # defp rename_keys(map) when is_map(map) do
-  #   map
-  #   |> map_rename_key(:readme, :readme_url)
-  #   |> map_rename_key(:html_url, :release_url)
-  #   |> map_rename_key(:url, :json_url)
-  # end
-
-  # defp map_rename_key(map, key, new_key) when is_map(map) do
-  #   if Map.has_key?(map, key) and not Map.has_key?(map, new_key) do
-  #     {value, updated_map} = Map.pop(map, key)
-  #     Map.put(updated_map, new_key, value)
-  #   else
-  #     map
-  #   end
-  # end
 
   defp charlist_equal?(charlist1, charlist2) do
     :string.equal(charlist1, charlist2)
@@ -446,57 +418,14 @@ defmodule MaintenanceJob.OtpReleases do
     )
   end
 
-  # defp strip_ids(patch) when is_list(patch) or is_map(patch) do
-  #   Enum.filter(patch, fn
-  #     {_key, %{id: _, url: url}} ->
-  #       url
-
-  #     {_, value} ->
-  #       value
-  #   end)
-  #   |> Enum.into(%{})
-  # end
-
   defp pmap(collection, func) do
     collection
     |> Enum.map(&Task.async(fn -> func.(&1) end))
     |> Enum.map(&Task.await/1)
   end
 
-  @doc false
-  def gh_get(url) do
-    request_headers = [
-      {"Accept", "application/vnd.github.v3+json"},
-      {"Authorization", "token " <> Maintenance.github_access_token!()}
-    ]
-
-    response = Req.get!(url, [headers: request_headers] ++ @req_options)
-
-    case response do
-      %{status: 200} -> get_link(response)
-      _ -> :error
-    end
-  end
-
-  defp get_link(response = %{headers: headers}) do
-    case List.keyfind(headers, "link", 0) do
-      {"link", link} ->
-        # <https://api.github.com/repositories/374927/releases?per_page=100&page=2>; rel="next", <https://api.github.com/repositories/374927/releases?per_page=100&page=2>; rel="last"
-        case Regex.run(~r/<([^>]+)>; rel="next"/, link, capture: :all_but_first) do
-          nil ->
-            body = Map.fetch!(response, :body)
-            {:ok, body}
-
-          [next_url] ->
-            {:ok, next_json} = gh_get(next_url)
-            body = Map.fetch!(response, :body)
-            {:ok, List.wrap(body) ++ next_json}
-        end
-    end
-  end
-
-  def parse_github_tags() do
-    {:ok, json} = gh_get(@github_tags_url)
+  defp parse_github_tags() do
+    {:ok, json} = Github.get!(@github_tags_url)
 
     for tag <- json, into: %{} do
       tag_name = Map.get(tag, "name")
@@ -511,36 +440,22 @@ defmodule MaintenanceJob.OtpReleases do
     end
   end
 
-  defp convert_keys_to_atoms(term) when is_list(term) or is_map(term) do
-    Enum.reduce(term, into(term), fn
-      {k, v}, acc ->
-        into(acc, {:"#{k}", convert_keys_to_atoms(v)})
-
-      elem, acc ->
-        into(acc, convert_keys_to_atoms(elem))
-    end)
-  end
-
-  defp convert_keys_to_atoms(term) do
-    term
-  end
-
   defp filter_keys(term, accepted_keys_atom) when is_atom(accepted_keys_atom) do
     filter_keys(term, accepted_keys(accepted_keys_atom))
   end
 
   defp filter_keys(term, accepted_keys_list)
        when (is_map(term) or is_list(term)) and is_list(accepted_keys_list) do
-    Enum.reduce(term, into(term), fn
+    Enum.reduce(term, Util.into(term), fn
       {k, v}, acc ->
         if k in accepted_keys_list do
-          into(acc, {k, filter_keys(v, accepted_keys_list)})
+          Util.into(acc, {k, filter_keys(v, accepted_keys_list)})
         else
           acc
         end
 
       elem, acc ->
-        into(acc, filter_keys(elem, accepted_keys_list))
+        Util.into(acc, filter_keys(elem, accepted_keys_list))
     end)
   end
 
@@ -551,12 +466,4 @@ defmodule MaintenanceJob.OtpReleases do
   # defp accepted_keys(:all), do: @all_accepted_keys
   defp accepted_keys(:otp), do: @otp_accepted_keys
   defp accepted_keys(:assets), do: @assets_accepted_keys
-
-  # defp into(:map), do: %{}
-  # defp into(:list), do: []
-  defp into(term) when is_map(term), do: %{}
-  defp into(term) when is_list(term), do: []
-
-  defp into(acc, {k, v}) when is_map(acc), do: Map.put(acc, k, v)
-  defp into(acc, elem) when is_list(acc), do: [elem | acc]
 end
