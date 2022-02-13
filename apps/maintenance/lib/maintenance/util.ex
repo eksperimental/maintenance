@@ -67,15 +67,22 @@ defmodule Maintenance.Util do
   @doc false
   @spec convert_keys_to_atoms(any()) :: any()
   def convert_keys_to_atoms(term) when is_list(term) or is_map(term) do
-    Enum.reduce(term, into(term), fn
-      {k, v}, acc ->
-        into(acc, {:"#{k}", convert_keys_to_atoms(v)})
+    into = into(term)
 
-      elem, acc ->
-        into(acc, convert_keys_to_atoms(elem))
-    end)
+    result =
+      Enum.reduce(term, into, fn
+        {k, v}, acc ->
+          into(acc, {:"#{k}", convert_keys_to_atoms(v)})
 
-    # |> Enum.reverse()
+        elem, acc ->
+          into(acc, convert_keys_to_atoms(elem))
+      end)
+
+    if into == [] do
+      :lists.reverse(result)
+    else
+      result
+    end
   end
 
   def convert_keys_to_atoms(term) do

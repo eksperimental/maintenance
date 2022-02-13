@@ -179,10 +179,10 @@ defmodule MaintenanceJob.ElixirReleases do
   end
 
   def build_releases(list) do
-    list_converted = Util.convert_keys_to_atoms(list)
-
     pre_filtered =
-      Enum.reject(list_converted, fn json_entry ->
+      list
+      |> Util.convert_keys_to_atoms()
+      |> Enum.reject(fn json_entry ->
         json_entry.tag_name
         |> tag_name_to_version()
         |> Version.match?("< 1.0.0")
@@ -212,6 +212,5 @@ defmodule MaintenanceJob.ElixirReleases do
       |> Map.put(:author, json_entry.author.login)
       |> Map.put(:assets, assets)
     end
-    |> :lists.reverse()
   end
 end
