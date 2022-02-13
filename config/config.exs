@@ -65,14 +65,17 @@ job_on_reboot =
     []
   end
 
-config :maintenance, MaintenanceJob.Scheduler,
-  jobs:
-    job_on_reboot ++
-      [
-        # Run every 6 hours
-        {"0 */6 * * *", {Maintenance.Runner, :update, []}}
-      ]
+job_regular =
+  if config_env() == :prod do
+    [
+      # Run every 6 hours
+      {"0 */6 * * *", {Maintenance.Runner, :update, []}}
+    ]
+  else
+    []
+  end
 
+config :maintenance, MaintenanceJob.Scheduler, jobs: job_on_reboot ++ job_regular
 config :maintenance, env: config_env()
 
 config :maintenance, data_dir: Path.join(Path.expand("~"), "maintenance_data")
