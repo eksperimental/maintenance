@@ -14,11 +14,14 @@ defmodule MaintenanceJob.Unicode do
   @type response :: %Finch.Response{}
   @type response_status :: pos_integer()
   @type contents :: %{required(file_name :: String.t()) => file_contents :: String.t()}
+  @type file_type :: :UCD | :UTS39
 
   @job :unicode
   @otp_regex_gen_unicode_version ~r/(spec_version\(\)\s+->\s+\{)((?<major>\d+),(?<minor>\d+)(,(?<patch>\d+))?)(\}\.\\n)/
 
   defguard is_version(term) when is_struct(term, Version)
+
+  defguard is_file_type(term) when term in [:UCD, :UTS39]
 
   #############################
   # Callbacks
@@ -46,8 +49,9 @@ defmodule MaintenanceJob.Unicode do
     } = calculate_update(project)
 
     if needs_update? do
-      {:ok, contents_ucd} = get_latest_ucd()
-      update(project, latest_unicode_version, contents_ucd)
+      {:ok, contents_ucd} = get_latest(:UCD)
+      {:ok, contents_uts39} = get_latest(:UTS39)
+      update(project, latest_unicode_version, %{UCD: contents_ucd, UTS39: contents_uts39})
     else
       {:ok, :no_update_needed}
     end
@@ -95,14 +99,24 @@ defmodule MaintenanceJob.Unicode do
   # https://github.com/elixir-lang/elixir/blob/main/lib/elixir/unicode/unicode.ex
   #
   # How to update the Unicode files
-  # Unicode files can be found in https://www.unicode.org/Public/
+  # Unicode files can be found in https://www.unicode.org/Public/VERSION_NUMBER/ where VERSION_NUMBER
+  # is the current Unicode version.
+  #
   # 1. Replace UnicodeData.txt by copying original
-  # 2. Replace PropList.txt by copying original
-  # 3. Replace SpecialCasing.txt by copying original and removing conditional mappings
-  # 4. Update String.Unicode.version/0 and on String module docs (version and link)
+  # 2. Replace PropertyValueAliases.txt by copying original
+  # 3. Replace PropList.txt by copying original
+  # 4. Replace ScriptExtensions.txt by copying original
+  # 5. Replace Scripts.txt by copying original
+  # 6. Replace SpecialCasing.txt by copying original
+  # 7. Replace confusables.txt by copying original
+  #    (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
+  # 8. Replace IdentifierType.txt by copying original
+  #    (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
+  # 9. Update String.Unicode.version/0 and on String module docs (version and link)
   @doc false
-  @spec update(Maintenance.project(), version(), contents()) :: MaintenanceJob.status()
-  def update(project = :elixir, version, contents) do
+  @spec update(Maintenance.project(), version(), %{file_type() => contents()}) ::
+          MaintenanceJob.status()
+  def update(project = :elixir, version, contents) when is_map(contents) do
     if pr_exists?(project, @job, version) do
       Util.info("PR exists: no update needed [#{project}]")
       {:ok, :no_update_needed}
@@ -113,27 +127,43 @@ defmodule MaintenanceJob.Unicode do
       unicode_dir = Path.join([git_path, "lib", "elixir", "unicode"])
       elixir_dir = Path.join([git_path, "lib", "elixir"])
 
+      # UCD
       # Replace UnicodeData.txt by copying original
+      # Replace PropertyValueAliases.txt by copying original
       # Replace PropList.txt by copying original
+      # Replace ScriptExtensions.txt by copying original
+      # Replace Scripts.txt by copying original
+      # Replace SpecialCasing.txt by copying original
+
+      # UTS39
+      # Replace confusables.txt by copying original
+      #  (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
+      # Replace IdentifierType.txt by copying original
+      #  (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
+
       fn_tasks =
-        for {dir, file_name} <- [
-              {unicode_dir, "UnicodeData.txt"},
-              {unicode_dir, "PropList.txt"}
+        for {dir, file_type, file_name} <- [
+              # UCD
+              {unicode_dir, :UCD, "UnicodeData.txt"},
+              {unicode_dir, :UCD, "PropertyValueAliases.txt"},
+              {unicode_dir, :UCD, "PropList.txt"},
+              {unicode_dir, :UCD, "ScriptExtensions.txt"},
+              {unicode_dir, :UCD, "Scripts.txt"},
+              {unicode_dir, :UCD, "SpecialCasing.txt"},
+
+              # UTS39
+              {unicode_dir, :UTS39, "confusables.txt"},
+              {unicode_dir, :UTS39, "IdentifierType.txt"}
             ] do
           fn ->
             File.write!(
               Path.join(dir, Path.basename(file_name)),
-              Map.get(contents, file_name)
+              Map.get(contents[file_type], file_name)
             )
           end
         end
 
-      # Replace SpecialCasing.txt by copying original and removing conditional mappings
       fn_task_special_casing = fn ->
-        regex = ~r{(#\s+=+\n#\s+Conditional Mappings\n.+)(#\s+EOF\n)}s
-        special_casing = Regex.replace(regex, Map.get(contents, "SpecialCasing.txt"), "\\2")
-        File.write(Path.join(unicode_dir, "SpecialCasing.txt"), special_casing)
-
         # Update String.Unicode.version/0
         string_unicode_module_path = Path.join([elixir_dir, "unicode", "unicode.ex"])
         regex_string_unicode_module = ~r/(def\s+version,\s+do:\s+)({\d+\s*,\s+\d+\s*,\s+\d+})/
@@ -227,25 +257,25 @@ defmodule MaintenanceJob.Unicode do
       unicode_test_dir = Path.join([git_path, "lib", "stdlib", "test", "unicode_util_SUITE_data"])
 
       fn_tasks =
-        for {dir, file_name} <- [
+        for {dir, file_type, file_name} <- [
               # lib/stdlib/uc_spec/
-              {unicode_spec_dir, "CaseFolding.txt"},
-              {unicode_spec_dir, "CompositionExclusions.txt"},
-              {unicode_spec_dir, "PropList.txt"},
-              {unicode_spec_dir, "SpecialCasing.txt"},
-              {unicode_spec_dir, "UnicodeData.txt"},
-              {unicode_spec_dir, "auxiliary/GraphemeBreakProperty.txt"},
-              {unicode_spec_dir, "emoji/emoji-data.txt"},
+              {unicode_spec_dir, :UCD, "CaseFolding.txt"},
+              {unicode_spec_dir, :UCD, "CompositionExclusions.txt"},
+              {unicode_spec_dir, :UCD, "PropList.txt"},
+              {unicode_spec_dir, :UCD, "SpecialCasing.txt"},
+              {unicode_spec_dir, :UCD, "UnicodeData.txt"},
+              {unicode_spec_dir, :UCD, "auxiliary/GraphemeBreakProperty.txt"},
+              {unicode_spec_dir, :UCD, "emoji/emoji-data.txt"},
 
               # lib/stdlib/test/unicode_util_SUITE_data/
-              {unicode_test_dir, "NormalizationTest.txt"},
-              {unicode_test_dir, "auxiliary/GraphemeBreakTest.txt"},
-              {unicode_test_dir, "auxiliary/LineBreakTest.txt"}
+              {unicode_test_dir, :UCD, "NormalizationTest.txt"},
+              {unicode_test_dir, :UCD, "auxiliary/GraphemeBreakTest.txt"},
+              {unicode_test_dir, :UCD, "auxiliary/LineBreakTest.txt"}
             ] do
           fn ->
             File.write!(
               Path.join(dir, Path.basename(file_name)),
-              Map.get(contents, file_name)
+              Map.get(contents[file_type], file_name)
             )
           end
         end
@@ -401,22 +431,40 @@ defmodule MaintenanceJob.Unicode do
   end
 
   @doc """
-  Get the UCD zipped file.
+  Gets a Unicode file.
+
+  `file_type` can be:
+  - `:UCD` - Retrives the Unicode Character Database in zippped format.
+  - `:UTS39` -  Unicode Technical Standard #39; retrieves the Unicode Security Data in zipped format.
 
   If it has been previously retrieved, it will be obtained from the cache.
   The file zip file is received and stored as a map, where the key of every entry
   is the relative path within the zip file.
   """
-  @spec get_ucd(version) :: {:ok, contents} | {:error, Mint.Types.status()}
-  def get_ucd(version) when is_version(version) do
-    response = Req.get!("https://www.unicode.org/Public/zipped/#{version}/UCD.zip")
+  @spec get!(file_type, version) :: {:ok, contents} | {:error, Mint.Types.status()}
+        when file_type: :UCD | :UTS39
+  def get!(:UCD, version) when is_version(version) do
+    get!(:UCD, version, "https://www.unicode.org/Public/zipped/#{version}/UCD.zip")
+  end
+
+  def get!(:UTS39, version) when is_version(version) do
+    get!(
+      :UTS39,
+      version,
+      "https://www.unicode.org/Public/security/14.0.0/uts39-data-#{version}.zip"
+    )
+  end
+
+  defp get!(file_type, version, url)
+       when is_file_type(file_type) and is_version(version) and is_binary(url) do
+    response = Req.get!(url)
 
     case response.status do
       200 ->
         body = Map.new(response.body, fn {k, v} -> {List.to_string(k), v} end)
 
         Task.Supervisor.start_child(Maintenance.TaskSupervisor, fn ->
-          write(version, body)
+          write(file_type, version, body)
         end)
 
         {:ok, body}
@@ -429,18 +477,16 @@ defmodule MaintenanceJob.Unicode do
   @doc """
   Gets the latest UCD zipped file.
   """
-  @spec get_latest_ucd() ::
-          {:ok, contents}
-          | {:error, response_status}
-  def get_latest_ucd() do
+  @spec get_latest(file_type) :: {:ok, contents} | {:error, response_status}
+  def get_latest(file_type) when is_file_type(file_type) do
     {:ok, latest_version} = get_latest_unicode_version()
 
-    case read(latest_version) do
+    case read(file_type, latest_version) do
       {:ok, contents} ->
         {:ok, contents}
 
       {:error, _} ->
-        case get_ucd(latest_version) do
+        case get!(file_type, latest_version) do
           {:ok, contents} ->
             {:ok, contents}
 
@@ -502,28 +548,28 @@ defmodule MaintenanceJob.Unicode do
   @doc """
   Return the path of the UCD file for the given `version`·
   """
-  @spec ucd_path(version()) :: Path.t()
-  def ucd_path(version) when is_version(version) do
-    Path.join(ucd_path(), to_string(version))
+  @spec get_path(file_type, version()) :: Path.t()
+  def get_path(file_type, version) when is_file_type(file_type) and is_version(version) do
+    Path.join(get_path(file_type), to_string(version))
   end
 
-  defp ucd_path() do
-    Maintenance.cache_path() |> Path.join("UCD")
+  defp get_path(file_type) when is_file_type(file_type) do
+    Maintenance.cache_path() |> Path.join(to_string(file_type))
   end
 
   @doc """
   Writes the UCD file in Erlang terms contents.
   """
-  @spec write(version(), contents()) :: :ok
-  def write(version, contents) when is_version(version) do
-    dir = ucd_path(version)
+  @spec write(file_type, version(), contents()) :: :ok
+  def write(file_type, version, contents) when is_file_type(file_type) and is_version(version) do
+    dir = get_path(file_type, version)
     tmp_dir = Path.join([dir, Integer.to_string(System.monotonic_time(:nanosecond))])
     File.mkdir_p!(tmp_dir)
 
-    tmp_path = Path.join([tmp_dir, "UCD.bin"])
+    tmp_path = Path.join([tmp_dir, "#{file_type}.bin"])
     File.write!(tmp_path, :erlang.term_to_binary(contents))
 
-    path = Path.join([dir, "UCD.bin"])
+    path = Path.join([dir, "#{file_type}.bin"])
     File.rename!(tmp_path, path)
     File.rmdir(tmp_dir)
   end
@@ -531,11 +577,11 @@ defmodule MaintenanceJob.Unicode do
   @doc """
   Reads the UCD file cached by the give `version`.
   """
-  @spec read(version()) :: {:ok, contents()} | {:error, File.posix()}
-  def read(version) when is_version(version) do
-    dir = ucd_path(version)
+  @spec read(file_type, version()) :: {:ok, contents()} | {:error, File.posix()}
+  def read(file_type, version) when is_file_type(file_type) and is_version(version) do
+    dir = get_path(file_type, version)
 
-    case File.read(Path.join(dir, "UCD.bin")) do
+    case File.read(Path.join(dir, "#{file_type}.bin")) do
       {:ok, binary} ->
         {:ok, :erlang.binary_to_term(binary)}
 
