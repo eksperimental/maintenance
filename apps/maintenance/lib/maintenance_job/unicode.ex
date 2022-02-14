@@ -227,7 +227,7 @@ defmodule MaintenanceJob.Unicode do
   # 3. Update the "spec_version()" function in the generator by replacing the Unicode
   # version in lib/stdlib/uc_spec/gen_unicode_mod.escript
   # 
-  # 4. Read the realease notes by visiting https://www.unicode.org/versions/latest/
+  # 4. Read the release notes by visiting https://www.unicode.org/versions/latest/
   # and assess if additional changes are necessary in the Erlang code.
   # 
   # 5. Replace all ocurrences of previous version of Unicode with the new one in
@@ -257,7 +257,7 @@ defmodule MaintenanceJob.Unicode do
       unicode_test_dir = Path.join([git_path, "lib", "stdlib", "test", "unicode_util_SUITE_data"])
 
       fn_tasks =
-        for {dir, file_type, file_name} <- [
+        for {dir, file_type, file_path} <- [
               # lib/stdlib/uc_spec/
               {unicode_spec_dir, :UCD, "CaseFolding.txt"},
               {unicode_spec_dir, :UCD, "CompositionExclusions.txt"},
@@ -274,8 +274,8 @@ defmodule MaintenanceJob.Unicode do
             ] do
           fn ->
             File.write!(
-              Path.join(dir, Path.basename(file_name)),
-              Map.get(contents[file_type], file_name)
+              Path.join(dir, Path.basename(file_path)),
+              Map.get(contents[file_type], file_path)
             )
           end
         end
@@ -365,7 +365,7 @@ defmodule MaintenanceJob.Unicode do
     This is an automated commit created by the Maintenance project
     #{Maintenance.git_repo_url()}
 
-    Before merging, please read the realease notes by visiting
+    Before merging, please read the release notes by visiting
     <http://www.unicode.org/versions/Unicode#{unicode_version}/>
     and assess if additional changes are necessary in the code base.
     """
