@@ -296,14 +296,21 @@ defmodule MaintenanceJob.Unicode do
       fn_task_gen_unicode = fn ->
         gen_unicode_path = Path.join([unicode_spec_dir, "gen_unicode_mod.escript"])
 
+        gen_unicode_version =
+          if version.patch == 0 do
+            "#{version.major},#{version.minor}"
+          else
+            "#{version.major},#{version.minor},#{version.patch}"
+          end
+
         string_gen_unicode =
-          File.read!(gen_unicode_path)
-          |> String.replace(
+          String.replace(
+            File.read!(gen_unicode_path),
             @otp_regex_gen_unicode_version,
-            "\\g{1}#{version.major},#{version.minor}\\g{3}"
+            "\\g{1}" <> gen_unicode_version <> "\\g{7}"
           )
 
-        File.write(string_gen_unicode, string_gen_unicode)
+        File.write(gen_unicode_path, string_gen_unicode)
       end
 
       all_fn_tasks = [fn_task_readme_update, fn_task_gen_unicode | fn_tasks]
