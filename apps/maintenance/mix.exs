@@ -4,7 +4,7 @@ defmodule Maintenance.MixProject do
   def project do
     [
       app: :maintenance,
-      version: "0.2.0",
+      version: version(),
       build_path: "../../_build",
       config_path: "../../config/config.exs",
       deps_path: "../../deps",
@@ -56,5 +56,11 @@ defmodule Maintenance.MixProject do
     [
       setup: ["deps.get"]
     ]
+  end
+
+  defp version() do
+    "../../VERSION"
+    |> File.read!()
+    |> String.trim()
   end
 end

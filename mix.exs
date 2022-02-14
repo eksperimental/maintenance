@@ -12,7 +12,7 @@ defmodule Maintenance.Umbrella.MixProject do
   def project do
     [
       apps_path: "apps",
-      version: "0.2.0",
+      version: version(),
       start_permanent: Mix.env() == :prod,
       description: @description,
       deps: deps(),
@@ -136,5 +136,11 @@ defmodule Maintenance.Umbrella.MixProject do
 
   defp strip(iodata) do
     :re.replace(iodata, "^[\s\r\n\t]+|[\s\r\n\t]+$", "", [:global, return: :binary])
+  end
+
+  defp version() do
+    "./VERSION"
+    |> File.read!()
+    |> String.trim()
   end
 end
