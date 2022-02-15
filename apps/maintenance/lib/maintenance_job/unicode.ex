@@ -458,7 +458,7 @@ defmodule MaintenanceJob.Unicode do
     get!(
       :UTS39,
       version,
-      "https://www.unicode.org/Public/security/14.0.0/uts39-data-#{version}.zip"
+      "https://www.unicode.org/Public/security/#{version}/uts39-data-#{version}.zip"
     )
   end
 

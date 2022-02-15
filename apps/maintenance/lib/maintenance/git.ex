@@ -302,23 +302,47 @@ defmodule Maintenance.Git do
 
     owner = Project.owner(config, :upstream)
 
-    {response_status, github_response, _httpoison_response} =
-      Tentacat.Pulls.create(client, owner, config.repo, body)
-
-    if response_status in 200..299 do
-      {:ok, created_at, _offset} =
-        Map.fetch!(github_response, "created_at") |> DateTime.from_iso8601()
+    with {_, {pr_response_status, pr_github_response, _httpoison_response}} when pr_response_status in 200..299 <- {:pr, Tentacat.Pulls.create(client, owner, config.repo, body)},
+      {_, {label_response_status, _label_github_response, _httpoison_response}} when label_response_status in 200..299 <-
+        {:label, Tentacat.Issues.Labels.add(client, owner, config.repo, pr_github_response["id"], ["automerge"])} do
+      {:ok, created_at, _offset} = Map.fetch!(pr_github_response, "created_at") |> DateTime.from_iso8601() 
 
       DB.put(project, db_key, %{
         value: db_value,
-        url: Map.fetch!(github_response, "html_url"),
+        url: Map.fetch!(pr_github_response, "html_url"),
         created_at: created_at
       })
 
       :ok
     else
-      {:error, github_response}
+      {:pr, {_pr_response_status, pr_github_response, _httpoison_response}} ->
+        {:error, pr_github_response}
+
+      {:label, {_label_response_status, label_github_response, _httpoison_response}} ->
+        {:error, label_github_response}
     end
+
+
+    # {response_status, github_response, _httpoison_response} =
+    #   Tentacat.Pulls.create(client, owner, config.repo, body)
+
+    # if response_status in 200..299 do
+    #   {:ok, created_at, _offset} =
+    #     Map.fetch!(github_response, "created_at") |> DateTime.from_iso8601()
+
+    #   {response_status, github_response, _httpoison_response} =
+    #     Tentacat.Issues.Labels.add(client, owner, config.repo, github_response["id"], ["automerge"])
+
+    #   DB.put(project, db_key, %{
+    #     value: db_value,
+    #     url: Map.fetch!(github_response, "html_url"),
+    #     created_at: created_at
+    #   })
+
+    #   :ok
+    # else
+    #   {:error, github_response}
+    # end
   end
 
   @spec get_ref_date_time(Maintenance.project(), String.t()) ::
