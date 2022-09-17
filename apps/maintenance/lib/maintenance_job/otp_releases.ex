@@ -238,7 +238,7 @@ defmodule MaintenanceJob.OtpReleases do
   @doc """
   Gets the versions tables from OTP repository.
   """
-  @spec get_versions_table() :: {:ok, contents :: String.t()} | :error
+  @spec get_versions_table() :: {:ok, contents :: String.t()} | {:error, term()}
   def get_versions_table() do
     result = Req.get!(@version_table_url)
 
@@ -246,15 +246,15 @@ defmodule MaintenanceJob.OtpReleases do
       %{status: 200} ->
         {:ok, Map.fetch!(result, :body)}
 
-      _ ->
-        :error
+      error ->
+        {:error, error}
     end
   end
 
   @doc """
   Gets the downloads page from https://erlang.org
   """
-  @spec get_downloads() :: {:ok, contents :: String.t()} | :error
+  @spec get_downloads() :: {:ok, contents :: String.t()} | {:error, term()}
   def get_downloads() do
     result = Req.get!(@erlang_download_url)
 
@@ -262,8 +262,8 @@ defmodule MaintenanceJob.OtpReleases do
       %{status: 200} ->
         {:ok, Map.fetch!(result, :body)}
 
-      _ ->
-        :error
+      error ->
+        {:error, error}
     end
   end
 

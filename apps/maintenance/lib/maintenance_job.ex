@@ -16,8 +16,8 @@ defmodule MaintenanceJob do
 
   @typedoc """
   The status returned by a job:
-  - `{:ok, :updated}` - the job was succefully executed; 
-  - `{:ok, no_update_needed}` - the job was succesfully run, but no update was needed; 
+  - `{:ok, :updated}` - the job was succefully executed;
+  - `{:ok, no_update_needed}` - the job was succesfully run, but no update was needed;
   - `{:error, term()}` - the job was failed and a term is passed with it;
   - `:not_implemented` - the job was was not executed because it is not implemented;
   """

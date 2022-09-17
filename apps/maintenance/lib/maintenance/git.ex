@@ -27,15 +27,14 @@ defmodule Maintenance.Git do
          _ <- System.cmd("git", ~w(config receive.fsckobjects true), cd: repo_path) do
       :ok
     else
-      _ ->
-        :error
+      error -> {:error, error}
     end
   end
 
   @doc """
   Returns the last commit of the given cached Git `project` repository.
   """
-  @spec get_last_commit_id(Maintenance.project()) :: {:ok, String.t()} | :error
+  @spec get_last_commit_id(Maintenance.project()) :: {:ok, String.t()} | {:error, term}
   def get_last_commit_id(project) when is_project(project) do
     # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
 
@@ -52,8 +51,8 @@ defmodule Maintenance.Git do
         commit_id = String.split(response_string) |> List.first()
         {:ok, commit_id}
 
-      {_, _} ->
-        :error
+      {_, _} = error ->
+        {:error, error}
     end
   end
 
@@ -77,7 +76,7 @@ defmodule Maintenance.Git do
     last_commit_id =
       case get_last_commit_id(project) do
         {:ok, last_commit_id} -> last_commit_id
-        :error -> nil
+        {:error, _} -> nil
       end
 
     case get_last_cached_commit_id(project) do
@@ -91,7 +90,12 @@ defmodule Maintenance.Git do
         :ok = update_repo(project)
         {:ok, %{cached?: false}}
 
-      result when result in [{:ok, nil}, :error] ->
+      {:ok, nil} ->
+        Util.info("Creating Git repository [#{project}]")
+        :ok = create_repo(project)
+        {:ok, %{cached?: false}}
+
+      {:error, _} ->
         Util.info("Creating Git repository [#{project}]")
         :ok = create_repo(project)
         {:ok, %{cached?: false}}
@@ -101,7 +105,7 @@ defmodule Maintenance.Git do
   @doc """
   Writes the Git `project` repository.
   """
-  @spec create_repo(Maintenance.project()) :: :ok | :error
+  @spec create_repo(Maintenance.project()) :: :ok | {:error, term()}
   def create_repo(project) when is_project(project) do
     config = Project.config(project)
 
@@ -127,14 +131,14 @@ defmodule Maintenance.Git do
            ) do
       :ok
     else
-      _ -> :error
+      error -> {:error, error}
     end
   end
 
   @doc """
   Updates the Git `project` repository.
   """
-  @spec update_repo(Maintenance.project()) :: :ok | :error
+  @spec update_repo(Maintenance.project()) :: :ok | {:error, term()}
   def update_repo(project) when is_project(project) do
     git_path = path(project)
     :ok = File.mkdir_p!(git_path)
@@ -149,15 +153,16 @@ defmodule Maintenance.Git do
          {_, 0} <- System.cmd("git", ~w(pull #{remote} HEAD -f), cd: git_path) do
       :ok
     else
-      _ ->
-        :error
+      error ->
+        {:error, error}
     end
   end
 
   @doc """
   Returns the last commit of the given cached Git `project` repository.
   """
-  @spec get_last_cached_commit_id(Maintenance.project()) :: {:ok, String.t() | nil} | :error
+  @spec get_last_cached_commit_id(Maintenance.project()) ::
+          {:ok, String.t() | nil} | {:error, term()}
   def get_last_cached_commit_id(project) when is_project(project) do
     # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
     # cached: git rev-parse refs/heads/main
@@ -170,7 +175,7 @@ defmodule Maintenance.Git do
 
       case response do
         {commit_id, 0} -> {:ok, String.trim(commit_id)}
-        {_, _} -> :error
+        {_, _} = error -> {:error, error}
       end
     else
       {:ok, nil}
@@ -199,33 +204,33 @@ defmodule Maintenance.Git do
     end
   end
 
-  @spec checkout(Maintenance.project(), branch) :: :ok | :error
+  @spec checkout(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
          {_, 0} <- System.cmd("git", ["checkout", branch], cd: git_path) do
       :ok
     else
-      _ -> :error
+      error -> {:error, error}
     end
   end
 
-  @spec checkout_new_branch(Maintenance.project(), branch) :: :ok | :error
+  @spec checkout_new_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout_new_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
          {_, 0} <- System.cmd("git", ["checkout", "-b", branch], cd: git_path) do
       :ok
     else
-      _ -> :error
+      error -> {:error, error}
     end
   end
 
-  @spec get_branch(Maintenance.project()) :: {:ok, branch} | :error
+  @spec get_branch(Maintenance.project()) :: {:ok, branch} | {:error, term()}
   def get_branch(project) when is_project(project) do
     with git_path <- path(project),
          {current_branch, 0} <- System.cmd("git", ~w(branch --show-current), cd: git_path) do
       {:ok, String.trim(current_branch)}
     else
-      _ -> :error
+      error -> {:error, error}
     end
   end
 
@@ -240,17 +245,17 @@ defmodule Maintenance.Git do
     end
   end
 
-  @spec push(Maintenance.project(), String.t()) :: :ok | :error
+  @spec push(Maintenance.project(), String.t()) :: :ok | {:error, term()}
   def push(project, remote_url) when is_project(project) and is_binary(remote_url) do
     auth_url = Maintenance.auth_url(remote_url)
 
     case System.cmd("git", ["push", auth_url, "HEAD", "-f"], cd: path(project)) do
       {_, 0} -> :ok
-      _ -> :error
+      error -> {:error, error}
     end
   end
 
-  @spec add(Maintenance.project(), binary | [binary]) :: :ok | :error
+  @spec add(Maintenance.project(), binary | [binary]) :: :ok | {:error, term()}
   def add(project, file_or_list_of_files)
 
   def add(project, file) when is_project(project) and is_binary(file),
@@ -261,17 +266,17 @@ defmodule Maintenance.Git do
 
     case System.cmd("git", List.flatten(["add", files]), cd: git_path) do
       {_, 0} -> :ok
-      _ -> :error
+      error -> {:error, error}
     end
   end
 
-  @spec delete_branch(Maintenance.project(), branch) :: :ok | {:error, map}
+  @spec delete_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def delete_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
          {_, 0} <- System.cmd("git", ["branch", "-D", branch], cd: git_path) do
       :ok
     else
-      _ -> :error
+      error -> {:error, error}
     end
   end
 
