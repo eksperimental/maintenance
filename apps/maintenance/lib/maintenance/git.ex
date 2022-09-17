@@ -307,31 +307,22 @@ defmodule Maintenance.Git do
 
     owner = Project.owner(config, :upstream)
 
-    with {_, {pr_response_status, pr_github_response, _httpoison_response}}
-         when pr_response_status in 200..299 <-
-           {:pr, Tentacat.Pulls.create(client, owner, config.repo, body)},
-         {_, {label_response_status, _label_github_response, _httpoison_response}}
-         when label_response_status in 200..299 <-
-           {:label,
-            Tentacat.Issues.Labels.add(client, owner, config.repo, pr_github_response["id"], [
-              "automerge"
-            ])} do
-      {:ok, created_at, _offset} =
-        Map.fetch!(pr_github_response, "created_at") |> DateTime.from_iso8601()
+    case Tentacat.Pulls.create(client, owner, config.repo, body) do
+      {pr_response_status, pr_github_response, _httpoison_response}
+      when pr_response_status in 200..299 ->
+        {:ok, created_at, _offset} =
+          Map.fetch!(pr_github_response, "created_at") |> DateTime.from_iso8601()
 
-      DB.put(project, db_key, %{
-        value: db_value,
-        url: Map.fetch!(pr_github_response, "html_url"),
-        created_at: created_at
-      })
+        DB.put(project, db_key, %{
+          value: db_value,
+          url: Map.fetch!(pr_github_response, "html_url"),
+          created_at: created_at
+        })
 
-      :ok
-    else
-      {:pr, {_pr_response_status, pr_github_response, _httpoison_response}} ->
+        :ok
+
+      {_pr_response_status, pr_github_response, _httpoison_response} ->
         {:error, pr_github_response}
-
-      {:label, {_label_response_status, label_github_response, _httpoison_response}} ->
-        {:error, label_github_response}
     end
 
     # {response_status, github_response, _httpoison_response} =
