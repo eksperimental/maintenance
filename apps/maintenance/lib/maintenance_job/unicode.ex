@@ -202,39 +202,40 @@ defmodule MaintenanceJob.Unicode do
   # the main source of information is the escript that builds the unicode module:
   # https://github.com/erlang/otp/blob/master/lib/stdlib/uc_spec/gen_unicode_mod.escript
   # https://github.com/erlang/otp/blob/master/lib/stdlib/test/io_proto_SUITE.erl
-  # 
+  #
   # When updating the Unicode version please follow these steps:
-  # 
+  #
   # The latest vesrion of the Unicode Character Database can be found at
   # https://www.unicode.org/Public/UCD/latest/ucd/
-  # 
+  #
   # 1. Copy the following files to lib/stdlib/uc_spec/ replacing existing ones.
   # Nosubfolder should be created.
   #   - CaseFolding.txt
   #   - CompositionExclusions.txt
+  #   - EastAsianWidth
   #   - PropList.txt
   #   - SpecialCasing.txt
   #   - UnicodeData.txt
   #   - auxiliary/GraphemeBreakProperty.txt
   #   - emoji/emoji-data.txt
-  # 
+  #
   # 2. Copy the following test files to lib/stdlib/test/unicode_util_SUITE_data/
   # replacing existing ones. No subfolder should be created.
   #   - NormalizationTest.txt
   #   - auxiliary/GraphemeBreakTest.txt
   #   - auxiliary/LineBreakTest.txt
-  # 
+  #
   # 3. Update the "spec_version()" function in the generator by replacing the Unicode
   # version in lib/stdlib/uc_spec/gen_unicode_mod.escript
-  # 
+  #
   # 4. Read the release notes by visiting https://www.unicode.org/versions/latest/
   # and assess if additional changes are necessary in the Erlang code.
-  # 
+  #
   # 5. Replace all ocurrences of previous version of Unicode with the new one in
   # this very same file (lib/stdlib/uc_spec/README-UPDATE.txt).
   # Remember to update these instructions if a new file is added or any other change
   # is required for future version updates.
-  # 
+  #
   # 6. Run the test for the Unicode suite from the OTP repository root dir.
   #    $ export ERL_TOP=$PWD
   #    $ export PATH=$ERL_TOP/bin:$PATH
@@ -243,7 +244,7 @@ defmodule MaintenanceJob.Unicode do
   #    $ erl
   #    erl> ts:install().
   #    erl> ts:run(stdlib, unicode_SUITE, [batch]).
-  # 
+  #
   def update(project = :otp, version, contents) do
     if pr_exists?(project, @job, version) do
       Util.info("PR exists: no update needed [#{project}, #{version}]")
