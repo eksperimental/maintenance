@@ -14,5 +14,7 @@ EnvironmentFile=/home/noname/env_vars
 
 ExecStart=/bin/bash -c '/home/noname/releases/${RELEASE}/bin/maintenance start'
 
+ExecStop=/bin/bash -c '/home/noname/releases/${RELEASE}/bin/maintenance stop'
+
 [Install]
 WantedBy=multi-user.target
