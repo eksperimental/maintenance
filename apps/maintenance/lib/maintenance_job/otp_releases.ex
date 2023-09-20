@@ -343,14 +343,16 @@ defmodule MaintenanceJob.OtpReleases do
     erlang_org_download = Map.get(downloads, patch_vsn, %{})
 
     case Enum.find(releases, fn release ->
-           tag_name = Map.get(release, "tag_name")
+           tag_name = Map.get(release, "tag_name", "master")
 
            charlist_equal?(tag_name, 'OTP-' ++ patch_vsn) or
              charlist_equal?(tag_name, 'OTP_' ++ patch_vsn)
          end) do
       nil ->
-        {tag_name, tarball_url} = Map.get(tags, patch_vsn, {nil, nil})
+        {tag_name, tarball_url} = Map.get(tags, patch_vsn, {"master", nil})
+
         # {:ok, tag_date_time} = Git.get_ref_date_time(:otp, tag_name)
+
         {:ok, commit_id} = Git.get_commit_id(:otp, tag_name)
         {:ok, commit_date_time} = Git.get_ref_date_time(:otp, commit_id)
 
