@@ -150,7 +150,10 @@ defmodule Maintenance.Git do
     git_path = path(project)
 
     with :ok <- config(project),
-         {_, 0} <- System.cmd("git", ~w(pull #{remote} HEAD -f), cd: git_path) do
+         # {_, 0} <- System.cmd("git", ~w(pull #{remote} HEAD -f), cd: git_path),
+         {_, 0} <- System.cmd("git", ~w(reset --hard HEAD), cd: git_path),
+         {_, 0} <- System.cmd("git", ~w(clean -f -d), cd: git_path),
+         {_, 0} <- System.cmd("git", ~w(fetch #{remote} HEAD -f), cd: git_path) do
       :ok
     else
       error ->
