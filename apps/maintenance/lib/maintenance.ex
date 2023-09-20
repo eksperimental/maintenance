@@ -16,8 +16,8 @@ defmodule Maintenance do
   Documentation for `Maintenance`.
   """
 
-  defguard is_project(term) when term in @projects
   defguard is_job(term) when is_atom(term)
+  defguard is_project(term) when term in @projects
 
   @doc false
   def app_name(), do: @app_name
@@ -26,9 +26,7 @@ defmodule Maintenance do
   def git_repo_url(), do: @git_repo_url
 
   @doc false
-  def data_dir() do
-    @data_dir
-  end
+  def data_dir(), do: @data_dir
 
   @doc false
   def cache_path() do
@@ -108,7 +106,7 @@ defmodule Maintenance do
   end
 
   @doc """
-  Returns `true` if enviromental variables `MAINTENANCE_FULL_PRODUCTION`
+  Returns `true` if environmental variable `MAINTENANCE_FULL_PRODUCTION`
   has been set to `"yes"`, otherwise returns `false`.
   """
   def full_production?() do
