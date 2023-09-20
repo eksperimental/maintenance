@@ -424,18 +424,30 @@ defmodule MaintenanceJob.Unicode do
   @spec get_latest_unicode_version() :: {:ok, Version.t()} | :error
   def get_latest_unicode_version() do
     result =
-      "https://www.unicode.org/Public/UCD/latest/ReadMe.txt"
-      |> Req.get!()
-      |> then(
-        &Regex.named_captures(
-          ~r{https://www.unicode.org/Public/zipped/(?<version>\d+\.\d+.\d+)/},
-          &1.body
-        )
-      )
+      case Req.request(url: "https://www.unicode.org/versions/latest/", redirect: false) do
+        {:ok,
+         %Req.Response{
+           headers: %{
+             "location" => [redirect_url]
+           },
+           status: 302
+         }} ->
+          # "https://www.unicode.org/versions/Unicode15.1.0/"
+          Regex.named_captures(
+            ~r{https://www.unicode.org/versions/Unicode(?<version>\d+\.\d+.\d+)/},
+            redirect_url
+          )
+
+        {:error, _exception} ->
+          :error
+      end
 
     case result do
-      nil -> :error
-      %{"version" => version} -> {:ok, to_version(version)}
+      %{"version" => version} ->
+        {:ok, to_version(version)}
+
+      _ ->
+        :error
     end
   end
 
