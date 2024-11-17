@@ -124,11 +124,11 @@ defmodule Maintenance.Umbrella.MixProject do
   defp revision do
     null =
       case :os.type() do
-        {:win32, _} -> 'NUL'
-        _ -> '/dev/null'
+        {:win32, _} -> ~c'NUL'
+        _ -> ~c'/dev/null'
       end
 
-    'git rev-parse --short=7 HEAD 2> '
+    ~c'git rev-parse --short=7 HEAD 2> '
     |> Kernel.++(null)
     |> :os.cmd()
     |> strip
