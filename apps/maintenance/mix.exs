@@ -38,11 +38,10 @@ defmodule Maintenance.MixProject do
     [
       {:phoenix_pubsub, "~> 2.0"},
       {:swoosh, "~> 1.3"},
-      # {:req, "~> 0.1.2"},
-      {:req, git: "https://github.com/wojtekmach/req/"},
+      {:req, "~> 0.5.0"},
       {:tentacat, "~> 2.0"},
       {:cubdb, "~> 1.1.0"},
-      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:quantum, "~> 3.0"},
       {:beam_langs_meta_data,
        git: "https://github.com/eksperimental/beam_langs_meta_data/", branch: "main"}
