@@ -1,3 +1,4 @@
+# credo:disable-for-this-file Credo.Check.Readability.Specs
 defmodule MaintenanceWeb.ErrorHelpers do
   @moduledoc """
   Conveniences for translating and building error messages.
@@ -9,7 +10,9 @@ defmodule MaintenanceWeb.ErrorHelpers do
   Generates tag for inlined form input errors.
   """
   def error_tag(form, field) do
-    Enum.map(Keyword.get_values(form.errors, field), fn error ->
+    form.errors
+    |> Keyword.get_values(field)
+    |> Enum.map(fn error ->
       content_tag(:span, translate_error(error),
         class: "invalid-feedback",
         phx_feedback_for: input_name(form, field)

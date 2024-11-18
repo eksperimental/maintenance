@@ -5,8 +5,9 @@ defmodule Maintenance.DB do
   Currently we use CubDB.
   """
 
-  import Maintenance, only: [is_project: 1]
   use GenServer
+
+  import Maintenance, only: [is_project: 1]
 
   @type state :: %{project => pid()}
   @type key :: term
@@ -53,9 +54,9 @@ defmodule Maintenance.DB do
 
   ## Callbacks
 
-  @impl true
+  @impl GenServer
   @spec init(term) :: {:ok, state()} | {:stop, reason :: any()}
-  def init(_) do
+  def init(_options) do
     projects = Maintenance.projects()
 
     result =
@@ -73,45 +74,60 @@ defmodule Maintenance.DB do
       {:stop, reason} ->
         {:stop, reason}
 
-      _ ->
+      _other ->
         {:ok, result}
     end
   end
 
-  @impl true
+  @impl GenServer
   @spec handle_call(term, GenServer.from(), state) :: {:reply, term(), state}
   def handle_call({:get, project, key, default}, _from, state) do
-    value = state |> Map.get(project) |> CubDB.get(key, default)
+    value =
+      state
+      |> Map.get(project)
+      |> CubDB.get(key, default)
 
     {:reply, value, state}
   end
 
   def handle_call({:select, project, options}, _from, state) do
-    value = state |> Map.get(project) |> CubDB.select(options)
+    value =
+      state
+      |> Map.get(project)
+      |> CubDB.select(options)
 
     {:reply, value, state}
   end
 
   def handle_call({:fetch, project, key}, _from, state) do
-    reply = state |> Map.get(project) |> CubDB.fetch(key)
+    reply =
+      state
+      |> Map.get(project)
+      |> CubDB.fetch(key)
 
     {:reply, reply, state}
   end
 
   def handle_call({:put, project, key, value}, _from, state) do
-    reply = state |> Map.get(project) |> CubDB.put(key, value)
+    reply =
+      state
+      |> Map.get(project)
+      |> CubDB.put(key, value)
 
     {:reply, reply, state}
   end
 
   def handle_call({:delete, project, key}, _from, state) do
-    reply = state |> Map.get(project) |> CubDB.delete(key)
+    reply =
+      state
+      |> Map.get(project)
+      |> CubDB.delete(key)
 
     {:reply, reply, state}
   end
 
-  # @impl true
+  # @impl GenServer
   # def handle_cast({:push, head}, tail) do
   #   {:noreply, [head | tail]}
-  # end  
+  # end
 end

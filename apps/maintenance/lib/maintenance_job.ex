@@ -10,21 +10,21 @@ defmodule MaintenanceJob do
   @typedoc """
   The job.
   """
-  @type t :: atom
+  @type t :: atom()
 
-  @type tasks :: [(() -> :ok)]
+  @type tasks :: [(-> :ok)]
 
   @typedoc """
   The status returned by a job:
-  - `{:ok, :updated}` - the job was succefully executed;
-  - `{:ok, no_update_needed}` - the job was succesfully run, but no update was needed;
+  - `{:ok, :updated}` - the job was successfully executed;
+  - `{:ok, no_update_needed}` - the job was successfully run, but no update was needed;
   - `{:error, term()}` - the job was failed and a term is passed with it;
   - `:not_implemented` - the job was was not executed because it is not implemented;
   """
   @type status :: {:ok, :updated} | {:ok, :no_update_needed} | {:error, term()} | :not_implemented
 
   @doc """
-  Retuns the atom representation of the job.
+  Returns the atom representation of the job.
   """
   @callback job() :: t()
 
@@ -49,8 +49,8 @@ defmodule MaintenanceJob do
   This function will check online or in the database
 
   - `db_key` is what will be recorded in the database as a key.
-  - `db_value` is what will be recorded in the database as a value. this should include a hash of the file that we are checking,
-    or a version number.
+  - `db_value` is what will be recorded in the database as a value. this should
+    include a hash of the file that we are checking, or a version number.
 
   This callback is optional.
   """

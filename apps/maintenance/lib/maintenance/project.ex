@@ -1,6 +1,6 @@
 defmodule Maintenance.Project do
   @moduledoc """
-  Module that contains the specific code for udpating each project.
+  Module that contains the specific code for updating each project.
   """
 
   alias Maintenance.DB
@@ -8,130 +8,66 @@ defmodule Maintenance.Project do
   # Add new projects here
   @type t :: :sample_project | :elixir | :otp | :beam_langs_meta_data
 
-  @typep remote :: :upstream | :upstream_dev | :origin
+  @typep remote :: :upstream | :origin
 
-  # NOTE:
-  # - maintenance-beam is the organization under which repositories are forked, and the PRs are created.
-  # - maintenance-beam-app is the user that create the PRs. The GitHub token access belongs to this user.
-  #     Also for dev/testing, the repositories are under maintenance-beam-app
-
-  @owner_upstream_dev "maintenance-beam-app"
-  @owner_origin "maintenance-beam"
-
-  @project_configs %{
-    elixir: %{
-      main_branch: "main",
-      owner_upstream: "elixir-lang",
-      owner_upstream_dev: @owner_upstream_dev,
-      owner_origin: @owner_origin,
-      repo: "elixir"
-    },
-    otp: %{
-      main_branch: "master",
-      owner_upstream: "erlang",
-      owner_upstream_dev: @owner_upstream_dev,
-      owner_origin: @owner_origin,
-      repo: "otp"
-    },
-    sample_project: %{
-      main_branch: "main",
-      owner_upstream: "maintenance-beam",
-      owner_upstream_dev: @owner_upstream_dev,
-      owner_origin: @owner_origin,
-      repo: "sample_project"
-    },
-    beam_langs_meta_data: %{
-      main_branch: "main",
-      owner_upstream: "eksperimental",
-      owner_upstream_dev: @owner_upstream_dev,
-      owner_origin: @owner_origin,
-      repo: "beam_langs_meta_data"
-    }
-  }
-
-  @projects Map.keys(@project_configs)
-
-  defguardp is_project(term) when term in @projects
-
-  build_config = fn %{
-                      main_branch: main_branch,
-                      owner_upstream: owner_upstream,
-                      owner_upstream_dev: owner_upstream_dev,
-                      owner_origin: owner_origin,
-                      repo: repo
-                    } ->
-    %{
-      main_branch: main_branch,
-      repo: repo,
-      owner: %{
-        upstream: owner_upstream,
-        upstream_dev: owner_upstream_dev,
-        origin: owner_origin
-      },
-      git_url: %{
-        upstream: "https://github.com/#{owner_upstream}/#{repo}",
-        upstream_dev: "https://github.com/#{owner_upstream_dev}/#{repo}",
-        origin: "https://github.com/#{owner_origin}/#{repo}"
-      }
-    }
-  end
+  defguardp is_project(term) when is_atom(term)
 
   @doc """
   Returns the configuration key-values for `project`.
   """
-  def config(project)
+  @spec config(Maintenance.project()) :: map()
+  def config(project) do
+    project_configs = Application.fetch_env!(:maintenance, :project_configs)
 
-  for {project, config} <- @project_configs do
-    result = config |> build_config.() |> Macro.escape()
-
-    def config(unquote(project)) do
-      unquote(result)
-    end
+    Map.fetch!(project_configs, project)
   end
 
+  @spec config(Maintenance.project(), atom()) :: any()
   def config(project, key) when is_project(project) and is_atom(key) do
-    config(project) |> Map.fetch!(key)
+    project
+    |> config()
+    |> Map.fetch!(key)
   end
 
+  @spec list_entries_by_job(Maintenance.project(), Maintenance.job()) :: any()
   def list_entries_by_job(project, job) when is_project(project) and is_atom(job) do
     # {:ok, result} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [reduce: fn ])
     {:ok, results} = DB.select(project, reverse: true)
 
     Enum.filter(results, fn
-      {{^job, _}, _v} ->
-        true
-
-      {^job, _v} ->
-        true
-
-      _ ->
-        false
+      {{^job, _}, _v} -> true
+      {^job, _v} -> true
+      _other -> false
     end)
   end
 
-  def list(), do: @projects
+  @spec list() :: [Maintenance.project()]
+  def list() do
+    project_configs = Application.fetch_env!(:maintenance, :project_configs)
+
+    Map.keys(project_configs)
+  end
 
   @doc """
   Returns the git_url from `config/0` based on whether the app
   is running in full production mode or not.
   """
-  @spec git_url(t() | map(), remote) :: String.t()
-  def git_url(project_or_config, remote)
+  @spec get_git_url(t() | map(), remote) :: String.t()
+  def get_git_url(project_or_config, remote)
 
-  def git_url(project, remote) when is_project(project) do
+  def get_git_url(project, remote) when is_project(project) do
     config = config(project)
-    git_url(config, remote)
+
+    get_git_url(config, remote)
   end
 
-  def git_url(config, remote) when is_map(config) and remote in [:upstream_dev, :origin] do
-    Map.get(config.git_url, remote)
-  end
-
-  def git_url(config, :upstream) when is_map(config) do
-    if Maintenance.full_production?() do
-      config.git_url.upstream
+  def get_git_url(config, remote) when is_map(config) and remote in [:origin, :upstream] do
+    if Maintenance.prod_release?() do
+      "https://github.com/#{config.owner.upstream}/#{config.repo}"
     else
-      config.git_url.upstream_dev
+      owner = Map.get(config.owner, remote)
+
+      "https://github.com/#{owner}/#{config.repo}"
     end
   end
 
@@ -139,23 +75,20 @@ defmodule Maintenance.Project do
   Returns the project owner from `config/0` based on whether the app
   is running in full production mode or not.
   """
-  @spec owner(t() | map(), remote) :: String.t()
-  def owner(project_or_config, remote)
+  @spec get_owner(t() | map(), remote) :: String.t()
+  def get_owner(project_or_config, remote)
 
-  def owner(project, remote) when is_project(project) do
+  def get_owner(project, remote) when is_project(project) do
     config = config(project)
-    owner(config, remote)
+
+    get_owner(config, remote)
   end
 
-  def owner(config, remote) when is_map(config) and remote in [:upstream_dev, :origin] do
-    Map.get(config.owner, remote)
-  end
-
-  def owner(config, :upstream) when is_map(config) do
-    if Maintenance.full_production?() do
+  def get_owner(config, remote) when is_map(config) and remote in [:upstream, :origin] do
+    if Maintenance.prod_release?() do
       config.owner.upstream
     else
-      config.owner.upstream_dev
+      Map.get(config.owner, remote)
     end
   end
 end

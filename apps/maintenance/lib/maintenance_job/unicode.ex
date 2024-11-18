@@ -3,12 +3,22 @@ defmodule MaintenanceJob.Unicode do
   Updates the Unicode Character Database.
   """
 
+  @behaviour MaintenanceJob
+
   import Maintenance, only: [is_project: 1]
   import Maintenance.Project, only: [config: 1]
-  alias Maintenance.{Git, DB, Util}
-  use Util
 
-  @behaviour MaintenanceJob
+  require Logger
+
+  alias Maintenance.DB
+  alias Maintenance.Git
+  alias Maintenance.Util
+
+  @job :unicode
+  @otp_regex_gen_unicode_version ~r/(spec_version\(\)\s+->\s+\{)((?<major>\d+),(?<minor>\d+)(,(?<patch>\d+))?)(\}\.\\n)/
+
+  #############################
+  # Types
 
   @type version :: %Version{}
   @type response :: %Finch.Response{}
@@ -16,15 +26,15 @@ defmodule MaintenanceJob.Unicode do
   @type contents :: %{required(file_name :: String.t()) => file_contents :: String.t()}
   @type file_type :: :UCD | :UTS39
 
-  @job :unicode
-  @otp_regex_gen_unicode_version ~r/(spec_version\(\)\s+->\s+\{)((?<major>\d+),(?<minor>\d+)(,(?<patch>\d+))?)(\}\.\\n)/
+  #############################
+  # Guards
 
   defguard is_version(term) when is_struct(term, Version)
 
   defguard is_file_type(term) when term in [:UCD, :UTS39]
 
   #############################
-  # Callbacks
+  # Callback implementations
 
   @impl MaintenanceJob
   @spec job() :: MaintenanceJob.t()
@@ -34,7 +44,7 @@ defmodule MaintenanceJob.Unicode do
   @spec implements_project?(atom) :: boolean
   def implements_project?(:elixir), do: true
   def implements_project?(:otp), do: true
-  def implements_project?(_), do: false
+  def implements_project?(_project), do: false
 
   @doc """
   Updates the Unicode in the given `project` by creating a git commit.
@@ -69,7 +79,7 @@ defmodule MaintenanceJob.Unicode do
   end
 
   @doc """
-  Converts `string` to `%Version{}` struct.
+  Converts `string` to version tuple.
   """
   @spec to_tuple(version) :: {Version.major(), Version.minor(), Version.patch()}
   def to_tuple(%Version{major: major, minor: minor, patch: patch}) do
@@ -156,10 +166,9 @@ defmodule MaintenanceJob.Unicode do
               {unicode_dir, :UTS39, "IdentifierType.txt"}
             ] do
           fn ->
-            File.write!(
-              Path.join(dir, Path.basename(file_name)),
-              Map.get(contents[file_type], file_name)
-            )
+            path = Path.join(dir, Path.basename(file_name))
+
+            File.write!(path, Map.get(contents[file_type], file_name))
           end
         end
 
@@ -169,7 +178,8 @@ defmodule MaintenanceJob.Unicode do
         regex_string_unicode_module = ~r/(def\s+version,\s+do:\s+)({\d+\s*,\s+\d+\s*,\s+\d+})/
 
         string_unicode_module =
-          File.read!(string_unicode_module_path)
+          string_unicode_module_path
+          |> File.read!()
           |> String.replace(
             regex_string_unicode_module,
             "\\1{#{version.major}, #{version.minor}, #{version.patch}}"
@@ -186,7 +196,8 @@ defmodule MaintenanceJob.Unicode do
           ~r{(\[The Unicode Standard,\s+Version\s+)(\d+\.\d+\.\d+)(\]\([^\)]+/Unicode)(\d+\.\d+\.\d+)(/\)\.)}
 
         string_module =
-          File.read!(string_module_path)
+          string_module_path
+          |> File.read!()
           |> String.replace(regex_string_module, "\\g{1}#{version}\\g{3}#{version}\\g{5}")
 
         File.write(string_module_path, string_module)
@@ -205,7 +216,7 @@ defmodule MaintenanceJob.Unicode do
   #
   # When updating the Unicode version please follow these steps:
   #
-  # The latest vesrion of the Unicode Character Database can be found at
+  # The latest version of the Unicode Character Database can be found at
   # https://www.unicode.org/Public/UCD/latest/ucd/
   #
   # 1. Copy the following files to lib/stdlib/uc_spec/ replacing existing ones.
@@ -231,7 +242,7 @@ defmodule MaintenanceJob.Unicode do
   # 4. Read the release notes by visiting https://www.unicode.org/versions/latest/
   # and assess if additional changes are necessary in the Erlang code.
   #
-  # 5. Replace all ocurrences of previous version of Unicode with the new one in
+  # 5. Replace all occurrences of previous version of Unicode with the new one in
   # this very same file (lib/stdlib/uc_spec/README-UPDATE.txt).
   # Remember to update these instructions if a new file is added or any other change
   # is required for future version updates.
@@ -275,10 +286,9 @@ defmodule MaintenanceJob.Unicode do
               {unicode_test_dir, :UCD, "auxiliary/LineBreakTest.txt"}
             ] do
           fn ->
-            File.write!(
-              Path.join(dir, Path.basename(file_path)),
-              Map.get(contents[file_type], file_path)
-            )
+            dir
+            |> Path.join(Path.basename(file_path))
+            |> File.write!(Map.get(contents[file_type], file_path))
           end
         end
 
@@ -288,7 +298,8 @@ defmodule MaintenanceJob.Unicode do
         regex_version = ~r{(\d+\.\d+\.\d+)}
 
         string_readme_update =
-          File.read!(readme_update_path)
+          readme_update_path
+          |> File.read!()
           |> String.replace(regex_version, to_string(version))
 
         File.write(readme_update_path, string_readme_update)
@@ -297,17 +308,12 @@ defmodule MaintenanceJob.Unicode do
       # lib/stdlib/uc_spec/gen_unicode_mod.escript
       fn_task_gen_unicode = fn ->
         gen_unicode_path = Path.join([unicode_spec_dir, "gen_unicode_mod.escript"])
-
-        gen_unicode_version =
-          if version.patch == 0 do
-            "#{version.major},#{version.minor}"
-          else
-            "#{version.major},#{version.minor},#{version.patch}"
-          end
+        gen_unicode_version = build_unicode_version(version)
 
         string_gen_unicode =
-          String.replace(
-            File.read!(gen_unicode_path),
+          gen_unicode_path
+          |> File.read!()
+          |> String.replace(
             @otp_regex_gen_unicode_version,
             "\\g{1}" <> gen_unicode_version <> "\\g{7}"
           )
@@ -320,8 +326,16 @@ defmodule MaintenanceJob.Unicode do
     end
   end
 
+  defp build_unicode_version(version = %Version{patch: 0}) do
+    "#{version.major},#{version.minor}"
+  end
+
+  defp build_unicode_version(version) when is_struct(version, Version) do
+    "#{version.major},#{version.minor},#{version.patch}"
+  end
+
   @impl MaintenanceJob
-  @spec run_tasks(Maintenance.project(), [(() -> :ok)], version()) :: MaintenanceJob.status()
+  @spec run_tasks(Maintenance.project(), [(-> :ok)], version()) :: MaintenanceJob.status()
   def run_tasks(project, tasks, version)
       when is_list(tasks) do
     {:ok, _} = Git.cache_repo(project)
@@ -386,11 +400,7 @@ defmodule MaintenanceJob.Unicode do
 
   defp pr_exists?(project, job, version)
        when is_project(project) and is_atom(job) and is_version(version) do
-    if get_unicode_db_entry(project, job, version) do
-      true
-    else
-      false
-    end
+    not (!get_unicode_db_entry(project, job, version))
   end
 
   defp pr_exists?(project, job, version)
@@ -399,11 +409,7 @@ defmodule MaintenanceJob.Unicode do
 
     case result do
       [{_, result}] ->
-        if Version.compare(version, result.version) == :gt do
-          false
-        else
-          true
-        end
+        not (Version.compare(version, result.version) == :gt)
 
       [] ->
         false
@@ -446,7 +452,7 @@ defmodule MaintenanceJob.Unicode do
       %{"version" => version} ->
         {:ok, to_version(version)}
 
-      _ ->
+      _other ->
         :error
     end
   end
@@ -455,7 +461,7 @@ defmodule MaintenanceJob.Unicode do
   Gets a Unicode file.
 
   `file_type` can be:
-  - `:UCD` - Retrives the Unicode Character Database in zippped format.
+  - `:UCD` - Retrieves the Unicode Character Database in zipped format.
   - `:UTS39` -  Unicode Technical Standard #39; retrieves the Unicode Security Data in zipped format.
 
   If it has been previously retrieved, it will be obtained from the cache.
@@ -490,7 +496,7 @@ defmodule MaintenanceJob.Unicode do
 
         {:ok, body}
 
-      _ ->
+      _other ->
         {:error, response.status}
     end
   end
@@ -531,7 +537,8 @@ defmodule MaintenanceJob.Unicode do
     case result do
       %{"version" => version_string} ->
         version =
-          String.split(version_string, ",")
+          version_string
+          |> String.split(",")
           |> Enum.map_join(".", &String.trim/1)
           |> to_version()
 
@@ -545,18 +552,25 @@ defmodule MaintenanceJob.Unicode do
 
   def get_current_unicode_version(:otp) do
     result =
-      Req.get!(
-        "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
-      )
+      "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
+      |> Req.get!()
       |> then(&Regex.named_captures(@otp_regex_gen_unicode_version, &1.body))
 
     case result do
       %{"major" => major, "minor" => minor, "patch" => ""} ->
-        version = Enum.join([major, minor, 0], ".") |> to_version()
+        version =
+          [major, minor, 0]
+          |> Enum.join(".")
+          |> to_version()
+
         {:ok, version}
 
       %{"major" => major, "minor" => minor, "patch" => patch} ->
-        version = Enum.join([major, minor, patch], ".") |> to_version()
+        version =
+          [major, minor, patch]
+          |> Enum.join(".")
+          |> to_version()
+
         {:ok, version}
 
       nil ->
@@ -572,11 +586,13 @@ defmodule MaintenanceJob.Unicode do
   """
   @spec get_path(file_type, version()) :: Path.t()
   def get_path(file_type, version) when is_file_type(file_type) and is_version(version) do
-    Path.join(get_path(file_type), to_string(version))
+    file_type
+    |> get_path()
+    |> Path.join(to_string(version))
   end
 
   defp get_path(file_type) when is_file_type(file_type) do
-    Maintenance.cache_path() |> Path.join(to_string(file_type))
+    Path.join(Maintenance.cache_path(), to_string(file_type))
   end
 
   @doc """
@@ -603,7 +619,12 @@ defmodule MaintenanceJob.Unicode do
   def read(file_type, version) when is_file_type(file_type) and is_version(version) do
     dir = get_path(file_type, version)
 
-    case File.read(Path.join(dir, "#{file_type}.bin")) do
+    file_contents =
+      dir
+      |> Path.join("#{file_type}.bin")
+      |> File.read()
+
+    case file_contents do
       {:ok, binary} ->
         {:ok, :erlang.binary_to_term(binary)}
 

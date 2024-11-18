@@ -43,22 +43,25 @@ defmodule Maintenance.MixProject do
       {:cubdb, "~> 1.1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:quantum, "~> 3.0"},
-      {:beam_langs_meta_data,
-       git: "https://github.com/eksperimental/beam_langs_meta_data/", branch: "main"}
+      # {:beam_langs_meta_data,
+      #  git: "https://github.com/eksperimental/beam_langs_meta_data/", branch: "main"}
+      {:beam_langs_meta_data, path: "../../../beam_langs_meta_data"}
     ]
   end
 
   # Aliases are shortcuts or tasks specific to the current project.
   #
   # See the documentation for `Mix` for more info on aliases.
-  defp aliases do
+  defp aliases() do
     [
       setup: ["deps.get"]
     ]
   end
 
   defp version() do
-    "../../VERSION"
+    path = Path.join(["..", "..", "VERSION"]) |> Path.expand(__DIR__)
+
+    path
     |> File.read!()
     |> String.trim()
   end

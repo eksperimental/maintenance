@@ -1,14 +1,16 @@
+# credo:disable-for-this-file Credo.Check.Readability.Specs
 defmodule MaintenanceWeb.Telemetry do
   @moduledoc false
 
   use Supervisor
+
   import Telemetry.Metrics
 
   def start_link(arg) do
     Supervisor.start_link(__MODULE__, arg, name: __MODULE__)
   end
 
-  @impl true
+  @impl Supervisor
   def init(_arg) do
     children = [
       # Telemetry poller will execute the given period measurements
@@ -21,7 +23,7 @@ defmodule MaintenanceWeb.Telemetry do
     Supervisor.init(children, strategy: :one_for_one)
   end
 
-  def metrics do
+  def metrics() do
     [
       # Phoenix Metrics
       summary("phoenix.endpoint.stop.duration",
@@ -40,7 +42,7 @@ defmodule MaintenanceWeb.Telemetry do
     ]
   end
 
-  defp periodic_measurements do
+  defp periodic_measurements() do
     [
       # A module, function and arguments to be invoked periodically.
       # This function must call :telemetry.execute/3 and a metric must be added above.

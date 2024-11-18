@@ -4,6 +4,7 @@ defmodule Maintenance.Umbrella.MixProject do
   # @app :maintenance
   @name "Maintenance"
   @repo_url "https://github.com/eksperimental/maintenance"
+
   @description """
   Maintenance BEAM project is an app which aims to automatize tasks in codebases of the Elixir,
   Erlang, or any other project using a Git repository (only GitHub is initially supported).
@@ -29,26 +30,37 @@ defmodule Maintenance.Umbrella.MixProject do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.28", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.0", only: [:dev], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:gradient, github: "esl/gradient", only: [:dev], runtime: false},
+      {:recode, "~> 0.7", only: :dev}
     ]
   end
 
   defp aliases do
     [
-      validate: [
+      docs: [
+        "docs --warnings-as-errors --formatter html"
+      ],
+      check: [
+        "compile",
         "format --check-formatted",
         "deps.unlock --check-unused",
-        "compile",
         "compile --warnings-as-errors",
+        "credo",
+        # "gradient",
         "dialyzer",
-        "docs",
-        "credo --ignore Credo.Check.Design.TagTODO"
+        "docs --warnings-as-errors --formatter html",
+
+        # # NOTE: Change to `"recode --no-autocorrect",` once the bug in Recode has been fixed
+        "recode "
       ],
       prepare: [
         "format",
+        "recode",
         "deps.clean --unused --unlock",
-        "deps.unlock --unsued"
+        "deps.unlock --unused"
       ],
       setup: [
         "deps.get",
@@ -57,7 +69,7 @@ defmodule Maintenance.Umbrella.MixProject do
       all: [
         "setup",
         "prepare",
-        "validate",
+        "check",
         test_isolated()
       ]
     ]
@@ -131,7 +143,7 @@ defmodule Maintenance.Umbrella.MixProject do
     ~c'git rev-parse --short=7 HEAD 2> '
     |> Kernel.++(null)
     |> :os.cmd()
-    |> strip
+    |> strip()
   end
 
   defp strip(iodata) do

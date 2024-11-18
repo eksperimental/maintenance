@@ -14,13 +14,15 @@ defmodule MaintenanceJob.ElixirReleases do
 
   @behaviour MaintenanceJob
 
-  use Maintenance.Util
-
   import BeamLangsMetaData.Helper, only: [to_version!: 1]
   import Maintenance, only: [is_project: 1]
-  import Maintenance.Project, only: [config: 2]
 
-  alias Maintenance.{DB, Git, Github, Util}
+  require Logger
+
+  alias Maintenance.DB
+  alias Maintenance.Git
+  alias Maintenance.Github
+  alias Maintenance.Util
 
   @job :elixir_releases
   @github_releases_url "https://api.github.com/repos/elixir-lang/elixir/releases?per_page=100"
@@ -47,8 +49,13 @@ defmodule MaintenanceJob.ElixirReleases do
   @impl MaintenanceJob
   @spec update(Maintenance.project()) :: MaintenanceJob.status()
   def update(project) when is_project(project) do
-    {:ok, elixir_releases} = Github.get!(@github_releases_url)
-    elixir_releases_json = elixir_releases |> build_releases() |> Jason.encode!(pretty: true)
+    {:ok, elixir_releases} = Github.fetch(@github_releases_url)
+
+    elixir_releases_json =
+      elixir_releases
+      |> build_releases()
+      |> Jason.encode!(pretty: true)
+
     elixir_releases_hash = Util.hash(elixir_releases_json)
 
     if needs_update?(project, @job, {:elixir_releases, elixir_releases_hash}) == false do
@@ -59,8 +66,12 @@ defmodule MaintenanceJob.ElixirReleases do
       {:ok, :no_update_needed}
     else
       fn_task_write_elixir_releases = fn ->
-        json_path = Path.join(Git.path(project), "priv/elixir_releases.json")
-        Util.info("Writting Elixir releases: #{json_path}")
+        json_path =
+          project
+          |> Git.path()
+          |> Path.join("priv/elixir_releases.json")
+
+        Util.info("Writing Elixir releases: #{json_path}")
 
         :ok = File.write(json_path, elixir_releases_json)
         Git.add(project, json_path)
@@ -81,15 +92,15 @@ defmodule MaintenanceJob.ElixirReleases do
   end
 
   @impl MaintenanceJob
-  @spec run_tasks(Maintenance.project(), [(() -> :ok)], term) :: MaintenanceJob.status()
+  @spec run_tasks(Maintenance.project(), [(-> :ok)], term) :: MaintenanceJob.status()
   def run_tasks(project, tasks, _additional_term \\ nil)
       when is_list(tasks) do
-    {:ok, _new_branch, previous_branch} = checkout_new_branch(project)
-
     [ok: {:elixir_releases, elixir_releases}] =
       tasks
       |> Task.async_stream(& &1.(), timeout: :infinity)
       |> Enum.to_list()
+
+    commit_message = "Update elixir_releases.json"
 
     pr_data = %{
       title: "Update Elixir releases",
@@ -97,120 +108,69 @@ defmodule MaintenanceJob.ElixirReleases do
       db_value: {:elixir_releases, elixir_releases}
     }
 
-    # Commit
-    commit_msg = "Update elixir_releases.json"
-
-    result =
-      case Git.commit(project, commit_msg) do
-        :ok ->
-          submit_pr(project, @job, pr_data)
-
-        {:error, error} ->
-          with {msg, 1} <- error,
-               "nothing to commit, working tree clean" <-
-                 String.trim(msg) |> String.split("\n") |> List.last() do
-            fn ->
-              Util.info("Project is already up-to-date: " <> inspect(error))
-              {:ok, :no_update_needed}
-            end
-          else
-            _ ->
-              fn -> raise("Could not commit: " <> inspect(error)) end
-          end
-      end
-
-    :ok = Git.checkout(project, previous_branch)
-
-    if is_function(result, 0) do
-      result.()
-    else
-      result
-    end
+    Git.checkout_new_branch_and_produce_commit!(project, @job, commit_message, pr_data)
   end
 
-  defp checkout_new_branch(project) do
-    {:ok, _} = Git.cache_repo(project)
-
-    :ok = Git.checkout(project, config(project, :main_branch))
-    {:ok, previous_branch} = Git.get_branch(project)
-
-    new_branch = Util.unique_branch_name(to_string(project))
-
-    :ok = Git.checkout_new_branch(project, new_branch)
-    {:ok, new_branch, previous_branch}
-  end
-
-  defp submit_pr(project, job, data) do
-    case Git.submit_pr(project, job, data) do
-      :ok ->
-        {:ok, :updated}
-
-      {:error, _} = error ->
-        IO.warn("Could not create PR, failed with: " <> inspect(error))
-        error
-    end
-  end
-
-  # #########################
-  # # Helpers
+  #########################
+  # Helpers
 
   defp build_assets(assets) do
     for asset <- assets do
-      Map.take(asset, [
-        :browser_download_url,
-        :content_type,
-        :created_at,
-        :id,
-        :label,
-        :name,
-        :node_id,
-        :size,
-        :state,
-        :updated_at,
-        :url
+      asset
+      |> Map.take([
+        "browser_download_url",
+        "content_type",
+        "created_at",
+        "id",
+        "label",
+        "name",
+        "node_id",
+        "size",
+        "state",
+        "updated_at",
+        "url"
       ])
-      |> Map.put(:uploader, asset.uploader.login)
+      |> Map.put("uploader", asset.uploader.login)
     end
   end
 
   defp tag_name_to_version("v" <> version) do
-    version
-    |> to_version!()
+    to_version!(version)
   end
 
+  @spec build_releases(list()) :: [%{String.t() => any()}]
   def build_releases(list) do
     pre_filtered =
-      list
-      |> Util.convert_keys_to_atoms()
-      |> Enum.reject(fn json_entry ->
+      Enum.reject(list, fn json_entry ->
         json_entry.tag_name
         |> tag_name_to_version()
         |> Version.match?("< 1.0.0")
       end)
 
     for json_entry <- pre_filtered do
-      assets = build_assets(json_entry.assets)
+      assets = build_assets(json_entry["assets"])
 
-      Map.take(json_entry, [
-        :assets_url,
-        :body,
-        :created_at,
-        :draft,
-        :html_url,
-        :id,
-        :name,
-        :node_id,
-        :prerelease,
-        :published_at,
-        :tag_name,
-        :tarball_url,
-        :target_commitish,
-        :upload_url,
-        :url,
-        :zipball_url
+      json_entry
+      |> Map.take([
+        "assets_url",
+        "body",
+        "created_at",
+        "draft",
+        "html_url",
+        "id",
+        "name",
+        "node_id",
+        "prerelease",
+        "published_at",
+        "tag_name",
+        "tarball_url",
+        "target_commitish",
+        "upload_url",
+        "url",
+        "zipball_url"
       ])
-      |> Map.put(:author, json_entry.author.login)
-      |> Map.put(:assets, assets)
+      |> Map.put("author", json_entry.author.login)
+      |> Map.put("assets", assets)
     end
   end
 end

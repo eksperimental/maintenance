@@ -51,12 +51,6 @@ config :phoenix, :json_library, Jason
 
 config :tentacat, :extra_headers, [{"Accept", "application/vnd.github.black-cat-preview+json"}]
 
-config :maintenance, :git_repo_url, "https://github.com/eksperimental/maintenance"
-
-config :maintenance, :author_github_account, "maintenance-beam-app"
-config :maintenance, :author_name, "Maintenance App"
-config :maintenance, :author_email, "maintenance-beam@autistici.org"
-
 # CRONTAB SCHEDULER
 job_on_reboot =
   if config_env() == :prod do
@@ -85,24 +79,58 @@ config :maintenance, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-config_path =
-  __DIR__
-  |> Path.join("..")
-  |> Path.join("config.sh")
-  |> Path.expand()
-
-unless File.exists?(config_path) do
-  File.write(config_path, """
-  # NOTE: Set this to "yes" when in production server and no more testing is done.
-  export MAINTENANCE_FULL_PRODUCTION="no"
-  """)
-end
-
-File.chmod!(config_path, 0o755)
-
 if File.exists?(Path.join(Path.expand(__DIR__), "env.secrets.exs")) do
   import_config "env.secrets.exs"
 end
+
+# NOTE:
+# - maintenance-beam is the organization under which repositories are forked, and the PRs are created.
+# - maintenance-beam-app is the user that create the PRs. The GitHub token access belongs to this user.
+#     Also for dev/testing, the repositories are under maintenance-beam-app
+
+config :maintenance,
+  git_repo_url: "https://github.com/eksperimental/maintenance",
+  author_github_account: "maintenance-beam-app",
+  author_name: "Maintenance App",
+  author_email: "maintenance-beam@autistici.org",
+  project_configs: %{
+    # beam_langs_meta_data: %{
+    #   repo: "beam_langs_meta_data",
+    #   main_branch: "main",
+    #   owner: %{
+    #     upstream: "eksperimental",
+    #     origin: "maintenance-beam",
+    #     dev: "maintenance-beam-app"
+    #   }
+    # },
+    # elixir: %{
+    #   repo: "elixir",
+    #   main_branch: "main",
+    #   owner: %{maintenance-beam@autistici.org
+    #     upstream: "elixir-lang",
+    #     origin: "maintenance-beam",
+    #     dev: "maintenance-beam-app"
+    #   }
+    # },
+    # otp: %{
+    #   repo: "otp",
+    #   main_branch: "master",
+    #   owner: %{
+    #     upstream: "erlang",
+    #     origin: "maintenance-beam",
+    #     dev: "maintenance-beam-app"
+    #   }
+    # },
+    sample_project: %{
+      repo: "sample_project",
+      main_branch: "main",
+      owner: %{
+        upstream: "maintenance-beam",
+        origin: "maintenance-beam",
+        dev: "maintenance-beam-app"
+      }
+    }
+  }
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

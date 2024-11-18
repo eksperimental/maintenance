@@ -6,11 +6,9 @@
 
 Feel free to open up an issue <https://github.com/eksperimental/beam_meta/issues> with your request/report.
 
-
 ## Contact
 
-Eksperimental <eskperimental (at) autistici (dot) org>
-
+Eksperimental <eksperimental (at) autistici (dot) org>
 
 ## License
 

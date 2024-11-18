@@ -1,5 +1,14 @@
 import Config
 
+###########
+# Variables
+
+release? = not (!System.get_env("RELEASE_MODE"))
+prod_release? = release? and config_env() == :prod
+
+###########
+# Configs
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
@@ -57,21 +66,15 @@ if config_env() == :prod do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
-full_production? =
-  case System.get_env("MAINTENANCE_FULL_PRODUCTION") do
-    "yes" ->
-      true
+release? = not (!System.get_env("RELEASE_MODE"))
+prod_release? = release? and config_env() == :prod
 
-    "no" ->
-      false
-
-    nil ->
-      false
-
-    _ ->
-      raise(
-        "Only \"yes\" and \"not\" are accepted values for Env variable MAINTENANCE_FULL_PRODUCTION"
-      )
+github_access_token =
+  case config_env() do
+    :test -> ""
+    _ -> System.fetch_env!("GITHUB_ACCESS_TOKEN")
   end
 
-config :maintenance, :full_production?, full_production?
+config :maintenance,
+  prod_release?: prod_release?,
+  github_access_token: github_access_token

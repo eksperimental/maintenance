@@ -82,8 +82,7 @@
           # You can customize the priority of any check
           # Priority values are: `low, normal, high, higher`
           #
-          {Credo.Check.Design.AliasUsage,
-           [priority: :low, if_nested_deeper_than: 2, if_called_more_often_than: 0]},
+          {Credo.Check.Design.AliasUsage, false},
           {Credo.Check.Design.TagFIXME, []},
           # You can also customize the exit_status of each check.
           # If you don't want TODO comments to cause `mix credo` to fail, just
@@ -135,7 +134,6 @@
           {Credo.Check.Refactor.FilterFilter, []},
           {Credo.Check.Refactor.FunctionArity, []},
           {Credo.Check.Refactor.LongQuoteBlocks, []},
-          {Credo.Check.Refactor.MapJoin, []},
           {Credo.Check.Refactor.MatchInCondition, []},
           {Credo.Check.Refactor.NegatedConditionsInUnless, []},
           {Credo.Check.Refactor.NegatedConditionsWithElse, []},
@@ -168,10 +166,8 @@
           {Credo.Check.Warning.UnusedRegexOperation, []},
           {Credo.Check.Warning.UnusedStringOperation, []},
           {Credo.Check.Warning.UnusedTupleOperation, []},
-          {Credo.Check.Warning.WrongTestFileExtension, []}
-        ],
-        disabled: [
-          #
+          {Credo.Check.Warning.WrongTestFileExtension, []},
+
           # Checks scheduled for next check update (opt-in for now)
           {Credo.Check.Refactor.UtcNowTruncate, []},
 
@@ -179,6 +175,7 @@
           # Controversial and experimental checks (opt-in, just move the check to `:enabled`
           #   and be sure to use `mix credo --strict` to see low priority checks)
           #
+
           {Credo.Check.Consistency.MultiAliasImportRequireUse, []},
           {Credo.Check.Consistency.UnusedVariableNames, []},
           {Credo.Check.Design.DuplicatedCode, []},
@@ -192,24 +189,49 @@
           {Credo.Check.Readability.OnePipePerLine, []},
           {Credo.Check.Readability.SeparateAliasRequire, []},
           {Credo.Check.Readability.SingleFunctionToBlockPipe, []},
-          {Credo.Check.Readability.SinglePipe, []},
-          {Credo.Check.Readability.Specs, []},
-          {Credo.Check.Readability.StrictModuleLayout, []},
+          {Credo.Check.Readability.SinglePipe, [allow_0_arity_functions: true]},
+
+          # Specs are covered by Recode, which exclude test files.
+          {Credo.Check.Readability.Specs,
+           files: %{excluded: ["test/**/*.{ex,exs}", "mix.exs"], include_defp: false}},
+          {Credo.Check.Readability.StrictModuleLayout,
+           order: [
+             :moduledoc,
+             :shortdoc,
+             :behaviour,
+             :use,
+             :import,
+             :require,
+             :alias,
+             :module_attribute,
+             :defstruct,
+             :opaque,
+             :type,
+             :typep,
+             :callback,
+             :macrocallback,
+             :optional_callbacks,
+             :module,
+             #  :callback_impl,
+             :public_guard,
+             :private_guard,
+             :public_macro,
+             :private_macro
+             #  :public_fun
+             #  :private_fun
+           ]},
           {Credo.Check.Readability.WithCustomTaggedTuple, []},
-          {Credo.Check.Refactor.ABCSize, []},
+          # {Credo.Check.Refactor.ABCSize, []},
           {Credo.Check.Refactor.AppendSingleItem, []},
           {Credo.Check.Refactor.DoubleBooleanNegation, []},
           {Credo.Check.Refactor.FilterReject, []},
           {Credo.Check.Refactor.IoPuts, []},
           {Credo.Check.Refactor.MapMap, []},
-          {Credo.Check.Refactor.ModuleDependencies, []},
+          # {Credo.Check.Refactor.ModuleDependencies, []},
           {Credo.Check.Refactor.NegatedIsNil, []},
-          {Credo.Check.Refactor.PassAsyncInTestCases, []},
           {Credo.Check.Refactor.PipeChainStart, []},
           {Credo.Check.Refactor.RejectFilter, []},
           {Credo.Check.Refactor.VariableRebinding, []},
-          {Credo.Check.Warning.LazyLogging, []},
-          {Credo.Check.Warning.LeakyEnvironment, []},
           {Credo.Check.Warning.MapGetUnsafePass, []},
           {Credo.Check.Warning.MixEnv, []},
           {Credo.Check.Warning.UnsafeToAtom, []},
@@ -218,6 +240,14 @@
           #
           # Custom checks can be created using `mix credo.gen.check`.
           #
+        ],
+        disabled: [
+          {Credo.Check.Refactor.PassAsyncInTestCases, []},
+          {Credo.Check.Warning.LeakyEnvironment, []},
+
+          # These are not longer supported since
+          {Credo.Check.Refactor.MapInto, []},
+          {Credo.Check.Warning.LazyLogging, []}
         ]
       }
     }

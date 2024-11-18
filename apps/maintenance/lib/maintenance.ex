@@ -1,4 +1,8 @@
 defmodule Maintenance do
+  @moduledoc """
+  Documentation for `Maintenance`.
+  """
+
   require Application
   require Logger
 
@@ -7,34 +11,33 @@ defmodule Maintenance do
   @git_repo_url Application.compile_env(:maintenance, :git_repo_url)
   @data_dir Application.compile_env!(:maintenance, :data_dir)
 
-  @projects Maintenance.Project.list()
-
   @type project :: Maintenance.Project.t()
   @type job :: MaintenanceJob.t()
 
-  @moduledoc """
-  Documentation for `Maintenance`.
-  """
-
   defguard is_job(term) when is_atom(term)
-  defguard is_project(term) when term in @projects
+
+  defguard is_project(term) when is_atom(term)
 
   @doc false
+  @spec app_name() :: atom()
   def app_name(), do: @app_name
 
   @doc false
+  @spec git_repo_url() :: String.t()
   def git_repo_url(), do: @git_repo_url
 
   @doc false
+  @spec data_dir() :: String.t()
   def data_dir(), do: @data_dir
 
   @doc false
+  @spec cache_path() :: String.t()
   def cache_path() do
-    data_dir()
-    |> Path.join("cache")
+    Path.join(data_dir(), "cache")
   end
 
   @doc false
+  @spec db_path(Maintenance.Project.t()) :: String.t()
   def db_path(project) when is_project(project) do
     data_dir()
     |> Path.join("database")
@@ -42,39 +45,30 @@ defmodule Maintenance do
   end
 
   @doc false
-  def github_access_token!() do
-    case Application.fetch_env(@app_name, :github_access_token) do
-      {:ok, github_access_token} ->
-        github_access_token
+  @spec author_email() :: String.t()
+  def author_email(), do: Application.fetch_env!(@app_name, :author_email)
 
-      :error ->
-        System.fetch_env!("GITHUB_ACCESS_TOKEN")
-    end
-  end
+  @spec author_github_account() :: String.t()
+  def author_github_account(), do: Application.fetch_env!(@app_name, :author_github_account)
+
+  @spec author_name() :: String.t()
+  def author_name(), do: Application.fetch_env!(@app_name, :author_name)
 
   @doc false
+  @spec auth_url(String.t()) :: String.t()
   def auth_url("https://" <> rest) do
     "https://" <> author_github_account() <> ":" <> github_access_token!() <> "@" <> rest
   end
 
-  def author_github_account() do
-    Application.fetch_env!(@app_name, :author_github_account)
-  end
-
-  def author_name() do
-    Application.fetch_env!(@app_name, :author_name)
-  end
-
   @doc false
-  def author_email() do
-    Application.fetch_env!(@app_name, :author_email)
-  end
+  @spec github_access_token!() :: String.t()
+  def github_access_token!(), do: Application.fetch_env!(@app_name, :github_access_token)
 
   @doc """
   List projects
   """
   @spec projects() :: nonempty_list(project)
-  def projects(), do: @projects
+  def projects(), do: Maintenance.Project.list()
 
   @doc """
   List jobs for the given `project`.
@@ -83,17 +77,24 @@ defmodule Maintenance do
   def jobs(project) when is_project(project) do
     with {:ok, modules} <- :application.get_key(:maintenance, :modules) do
       Enum.reduce(modules, [], fn module, acc ->
-        with behaviours <-
-               module.module_info(:attributes) |> Keyword.get_values(:behaviour) |> List.flatten(),
+        with behaviours <- list_behaviours(module),
              true <- MaintenanceJob in behaviours,
-             true <- apply(module, :implements_project?, [project]),
-             job <- apply(module, :job, []) do
+             true <- module.implements_project?(project),
+             job <- module.job() do
           [job | acc]
         else
-          _ -> acc
+          _other -> acc
         end
       end)
     end
+  end
+
+  defp list_behaviours(module) do
+    attributes = module.module_info(:attributes)
+
+    attributes
+    |> Keyword.get_values(:behaviour)
+    |> List.flatten()
   end
 
   # Public helpers
@@ -101,15 +102,17 @@ defmodule Maintenance do
   @doc """
   Returns the MIX_ENV value, as an atom.
   """
+  @spec env!() :: atom()
   def env!() do
-    Application.fetch_env!(app_name(), :env)
+    Application.fetch_env!(@app_name, :env)
   end
 
   @doc """
   Returns `true` if environmental variable `MAINTENANCE_FULL_PRODUCTION`
   has been set to `"yes"`, otherwise returns `false`.
   """
-  def full_production?() do
-    Application.fetch_env!(app_name(), :full_production?)
+  @spec prod_release?() :: boolean()
+  def prod_release?() do
+    Application.fetch_env!(@app_name, :prod_release?)
   end
 end

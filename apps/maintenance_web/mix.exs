@@ -65,7 +65,9 @@ defmodule MaintenanceWeb.MixProject do
   end
 
   defp version() do
-    "../../VERSION"
+    path = Path.join(["..", "..", "VERSION"]) |> Path.expand(__DIR__)
+
+    path
     |> File.read!()
     |> String.trim()
   end

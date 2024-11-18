@@ -20,5 +20,6 @@ defmodule MaintenanceWeb.Gettext do
 
   See the [Gettext Docs](https://hexdocs.pm/gettext) for detailed usage.
   """
-  use Gettext, otp_app: :maintenance_web
+
+  use Gettext.Backend, otp_app: :maintenance_web
 end

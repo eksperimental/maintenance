@@ -1,4 +1,7 @@
 [
-  inputs: ["mix.exs", "config/*.exs"],
+  inputs: [
+    "*.exs",
+    "{config,lib,test}/**/*.{ex,exs}"
+  ],
   subdirectories: ["apps/*"]
 ]

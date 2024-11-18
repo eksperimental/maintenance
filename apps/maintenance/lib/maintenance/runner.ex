@@ -23,8 +23,8 @@ defmodule Maintenance.Runner do
   def update(project, job) when is_project(project) and is_job(job) do
     job_module = get_job_module(job)
 
-    if apply(job_module, :implements_project?, [project]) do
-      apply(job_module, :update, [project])
+    if job_module.implements_project?(project) do
+      job_module.update(project)
     else
       :not_implemented
     end
@@ -35,6 +35,6 @@ defmodule Maintenance.Runner do
   """
   @spec get_job_module(Maintenance.job()) :: module
   def get_job_module(job) when is_job(job) do
-    Module.concat([MaintenanceJob, Macro.camelize(to_string(job))])
+    Module.safe_concat([MaintenanceJob, Macro.camelize(to_string(job))])
   end
 end

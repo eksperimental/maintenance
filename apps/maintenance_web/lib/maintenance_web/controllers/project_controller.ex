@@ -1,3 +1,4 @@
+# credo:disable-for-this-file Credo.Check.Readability.Specs
 defmodule MaintenanceWeb.ProjectController do
   use MaintenanceWeb, :controller
 
@@ -11,13 +12,19 @@ defmodule MaintenanceWeb.ProjectController do
   end
 
   def show_jobs(conn, %{"project" => project}) do
-    jobs = project |> String.to_atom() |> Maintenance.jobs()
+    jobs =
+      project
+      |> String.to_existing_atom()
+      |> Maintenance.jobs()
+
     render(conn, "show.html", project: project, jobs: jobs)
   end
 
   def show_entries(conn, %{"project" => project, "job" => job}) do
-    entries =
-      Maintenance.Project.list_entries_by_job(String.to_atom(project), String.to_atom(job))
+    project = String.to_existing_atom(project)
+    job = String.to_existing_atom(job)
+
+    entries = Maintenance.Project.list_entries_by_job(project, job)
 
     render(conn, "entries.html", project: project, job: job, entries: entries)
   end

@@ -1,25 +1,24 @@
 defmodule MaintenanceJob.SampleJob do
   @moduledoc """
-  Test MaintenajeJob module.
+  Sample MaintenanceJob module.
 
   What this sample job does it to check for the file `YEAR_MONTH.md` and checks if the file contains the string of the current `YEAR-MONTH` for example "2022-01".
   """
 
+  @behaviour MaintenanceJob
+
+  import Maintenance, only: [is_project: 1]
+
+  require Logger
+
+  alias Maintenance.DB
+  alias Maintenance.Git
   alias Maintenance.Util
-  use Util
 
   @job :sample_job
   # 5 minutes
   @req_options [receive_timeout: 60_000 * 5]
-
   @year_month_url "https://raw.githubusercontent.com/maintenance-beam/sample_project/main/YEAR_MONTH.md"
-
-  import Maintenance, only: [is_project: 1]
-  import Maintenance.Project, only: [config: 2]
-  alias Maintenance.{Git, DB, Util}
-  use Util
-
-  @behaviour MaintenanceJob
 
   @type response :: %Finch.Response{}
   @type response_status :: pos_integer()
@@ -63,8 +62,12 @@ defmodule MaintenanceJob.SampleJob do
 
       true ->
         fn_task_write_year_month = fn ->
-          year_month_path = Path.join(Git.path(project), "YEAR_MONTH.md")
-          Util.info("Writting YEAR_MONTH: #{year_month_path}")
+          year_month_path =
+            project
+            |> Git.path()
+            |> Path.join("YEAR_MONTH.md")
+
+          Util.info("Writing YEAR_MONTH: #{year_month_path}")
 
           :ok = File.write(year_month_path, year_month_string)
           Git.add(project, year_month_path)
@@ -101,15 +104,14 @@ defmodule MaintenanceJob.SampleJob do
   end
 
   @impl MaintenanceJob
-  @spec run_tasks(Maintenance.project(), [(() -> :ok)]) :: MaintenanceJob.status()
-  def run_tasks(project, tasks, _additional_term \\ nil)
-      when is_list(tasks) do
-    {:ok, _new_branch, previous_branch} = checkout_new_branch(project)
-
+  @spec run_tasks(Maintenance.project(), [(-> :ok)], term()) :: MaintenanceJob.status()
+  def run_tasks(project, tasks, _additional_term \\ nil) when is_list(tasks) do
     [ok: {:year_month, year_month_string}] =
       tasks
       |> Task.async_stream(& &1.(), timeout: :infinity)
       |> Enum.to_list()
+
+    commit_message = "Update YEAR_MONTH.md"
 
     pr_data = %{
       title: "Update Year-Month",
@@ -117,59 +119,7 @@ defmodule MaintenanceJob.SampleJob do
       db_value: {:year_month, year_month_string}
     }
 
-    # Commit
-    commit_msg = "Update YEAR_MONTH.md"
-
-    result =
-      case Git.commit(project, commit_msg) do
-        :ok ->
-          submit_pr(project, @job, pr_data)
-
-        {:error, error} ->
-          with {msg, 1} <- error,
-               "nothing to commit, working tree clean" <-
-                 String.trim(msg) |> String.split("\n") |> List.last() do
-            fn ->
-              Util.info("Project is already up-to-date: " <> inspect(error))
-              {:ok, :no_update_needed}
-            end
-          else
-            _ ->
-              fn -> raise("Could not commit: " <> inspect(error)) end
-          end
-      end
-
-    :ok = Git.checkout(project, previous_branch)
-
-    if is_function(result, 0) do
-      result.()
-    else
-      result
-    end
-  end
-
-  defp checkout_new_branch(project) do
-    {:ok, _} = Git.cache_repo(project)
-
-    :ok = Git.checkout(project, config(project, :main_branch))
-    {:ok, previous_branch} = Git.get_branch(project)
-
-    new_branch = Util.unique_branch_name(to_string(project))
-
-    :ok = Git.checkout_new_branch(project, new_branch)
-
-    {:ok, new_branch, previous_branch}
-  end
-
-  defp submit_pr(project, job, data) do
-    case Git.submit_pr(project, job, data) do
-      :ok ->
-        {:ok, :updated}
-
-      {:error, _} = error ->
-        IO.warn("Could not create PR, failed with: " <> inspect(error))
-        error
-    end
+    Git.checkout_new_branch_and_produce_commit!(project, @job, commit_message, pr_data)
   end
 
   #########################
@@ -186,7 +136,7 @@ defmodule MaintenanceJob.SampleJob do
       %{status: 200} ->
         {:ok, Map.fetch!(response, :body)}
 
-      _ ->
+      _other ->
         :error
     end
   end

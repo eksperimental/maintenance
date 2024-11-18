@@ -1,3 +1,4 @@
+# credo:disable-for-this-file /Credo\.Check.Readability\.(AliasAs|Specs)/
 defmodule MaintenanceWeb do
   @moduledoc """
   The entrypoint for defining your web interface, such
@@ -17,21 +18,31 @@ defmodule MaintenanceWeb do
   and import those modules here.
   """
 
-  def controller do
+  @doc """
+  When used, dispatch to the appropriate controller/view/etc.
+  """
+  defmacro __using__(which) when is_atom(which) do
+    apply(__MODULE__, which, [])
+  end
+
+  def controller() do
     quote do
       use Phoenix.Controller, namespace: MaintenanceWeb
+      use Gettext, backend: MaintenanceWeb.Gettext
 
       import Plug.Conn
-      import MaintenanceWeb.Gettext
+
       alias MaintenanceWeb.Router.Helpers, as: Routes
     end
   end
 
-  def view do
+  def view() do
     quote do
       use Phoenix.View,
         root: "lib/maintenance_web/templates",
         namespace: MaintenanceWeb
+
+      use Gettext, backend: MaintenanceWeb.Gettext
 
       # Import convenience functions from controllers
       import Phoenix.Controller,
@@ -42,7 +53,7 @@ defmodule MaintenanceWeb do
     end
   end
 
-  def live_view do
+  def live_view() do
     quote do
       use Phoenix.LiveView,
         layout: {MaintenanceWeb.LayoutView, "live.html"}
@@ -51,7 +62,7 @@ defmodule MaintenanceWeb do
     end
   end
 
-  def live_component do
+  def live_component() do
     quote do
       use Phoenix.LiveComponent
 
@@ -59,7 +70,7 @@ defmodule MaintenanceWeb do
     end
   end
 
-  def router do
+  def router() do
     quote do
       use Phoenix.Router
 
@@ -69,17 +80,19 @@ defmodule MaintenanceWeb do
     end
   end
 
-  def channel do
+  def channel() do
     quote do
       use Phoenix.Channel
-      import MaintenanceWeb.Gettext
+      use Gettext, backend: MaintenanceWeb.Gettext
     end
   end
 
-  defp view_helpers do
+  defp view_helpers() do
     quote do
       # Use all HTML functionality (forms, tags, etc)
       use Phoenix.HTML
+
+      use Gettext, backend: MaintenanceWeb.Gettext
 
       # Import LiveView and .heex helpers (live_render, live_patch, <.form>, etc)
       import Phoenix.LiveView.Helpers
@@ -88,15 +101,8 @@ defmodule MaintenanceWeb do
       import Phoenix.View
 
       import MaintenanceWeb.ErrorHelpers
-      import MaintenanceWeb.Gettext
+
       alias MaintenanceWeb.Router.Helpers, as: Routes
     end
-  end
-
-  @doc """
-  When used, dispatch to the appropriate controller/view/etc.
-  """
-  defmacro __using__(which) when is_atom(which) do
-    apply(__MODULE__, which, [])
   end
 end
