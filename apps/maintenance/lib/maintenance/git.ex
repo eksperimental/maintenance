@@ -49,7 +49,7 @@ defmodule Maintenance.Git do
     response =
       System.cmd(
         "git",
-        ~w(ls-remote #{Project.get_git_url(config, :upstream)} refs/heads/#{config.main_branch})
+        ~w(ls-remote #{Project.get_git_url(config, :origin)} refs/heads/#{config.main_branch})
       )
 
     case response do
@@ -124,21 +124,21 @@ defmodule Maintenance.Git do
     with {_, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{Project.get_git_url(config, :upstream)} --branch #{config.main_branch} #{path(project)})
+             ~w(clone #{Project.get_git_url(config, :origin)} --branch #{config.main_branch} #{path(project)})
            ),
          :ok <- config(project),
          git_path <- path(project),
-         {_, 0} <- System.cmd("git", ~w(remote remove origin), cd: git_path),
+         {_, 0} <- System.cmd("git", ~w(remote remove upstream), cd: git_path),
          {_, 0} <-
            System.cmd(
              "git",
-             ~w(remote add origin #{Project.get_git_url(config, :origin)}),
+             ~w(remote add upstream #{Project.get_git_url(config, :upstream)}),
              cd: git_path
            ),
          # _ <-
-         #   System.cmd("git", ~w(remote remove upstream), cd: git_path),
+         #   System.cmd("git", ~w(remote remove origin), cd: git_path),
          {_, 0} <-
-           System.cmd("git", ~w(remote add upstream #{Project.get_git_url(config, :upstream)}),
+           System.cmd("git", ~w(remote add origin #{Project.get_git_url(config, :origin)}),
              cd: git_path
            ) do
       :ok
@@ -155,7 +155,7 @@ defmodule Maintenance.Git do
     git_path = path(project)
     :ok = File.mkdir_p!(git_path)
 
-    update_repo(project, "upstream")
+    update_repo(project, "origin")
   end
 
   defp update_repo(project, remote) do
@@ -303,7 +303,7 @@ defmodule Maintenance.Git do
       when is_project(project) and is_atom(job) and is_map(data) do
     config = Project.config(project)
 
-    push(project, Project.get_git_url(config, :origin))
+    push(project, Project.get_git_url(config, :upstream))
 
     client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token!()})
     {:ok, branch} = get_branch(project)
@@ -318,11 +318,11 @@ defmodule Maintenance.Git do
         If you find any issue in this PR, please kindly report it to
         #{Maintenance.git_repo_url()}/issues
         """),
-      "head" => Map.get(data, :head, Project.get_owner(config, :origin) <> ":" <> branch),
+      "head" => Map.get(data, :head, Project.get_owner(config, :upstream) <> ":" <> branch),
       "base" => Map.get(data, :base, config.main_branch)
     }
 
-    owner = Project.get_owner(config, :upstream)
+    owner = Project.get_owner(config, :origin)
 
     case Tentacat.Pulls.create(client, owner, config.repo, body) do
       {pr_response_status, pr_github_response, _httpoison_response}

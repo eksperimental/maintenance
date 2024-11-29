@@ -8,7 +8,7 @@ defmodule Maintenance.Project do
   # Add new projects here
   @type t :: :sample_project | :elixir | :otp | :beam_langs_meta_data
 
-  @typep remote :: :upstream | :origin
+  @typep remote :: :origin | :upstream
 
   defguardp is_project(term) when is_atom(term)
 
@@ -61,9 +61,9 @@ defmodule Maintenance.Project do
     get_git_url(config, remote)
   end
 
-  def get_git_url(config, remote) when is_map(config) and remote in [:origin, :upstream] do
+  def get_git_url(config, remote) when is_map(config) and remote in [:upstream, :origin] do
     if Maintenance.prod_release?() do
-      "https://github.com/#{config.owner.upstream}/#{config.repo}"
+      "https://github.com/#{config.owner.origin}/#{config.repo}"
     else
       owner = Map.get(config.owner, remote)
 
@@ -84,9 +84,9 @@ defmodule Maintenance.Project do
     get_owner(config, remote)
   end
 
-  def get_owner(config, remote) when is_map(config) and remote in [:upstream, :origin] do
+  def get_owner(config, remote) when is_map(config) and remote in [:origin, :upstream] do
     if Maintenance.prod_release?() do
-      config.owner.upstream
+      config.owner.origin
     else
       Map.get(config.owner, remote)
     end

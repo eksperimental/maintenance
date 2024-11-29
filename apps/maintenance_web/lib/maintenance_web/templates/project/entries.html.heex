@@ -1,4 +1,4 @@
-<h1>Job for <%= String.capitalize(@project) %> - <%= String.capitalize(@job) %></h1>
+<h1>Job for <%= String.capitalize(to_string(@project)) %> - <%= String.capitalize(to_string(@job)) %></h1>
 
 <table>
   <thead>
@@ -25,5 +25,5 @@
 </table>
 
 
-[ <span><%= link "Back to #{String.capitalize(@project)}", to: Routes.project_path(@conn, :show_jobs, @project) %></span> ]
+[ <span><%= link "Back to #{String.capitalize(to_string(@project))}", to: Routes.project_path(@conn, :show_jobs, @project) %></span> ]
 [ <span><%= link "View All Jobs", to: Routes.job_path(@conn, :index) %></span>]

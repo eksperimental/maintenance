@@ -88,6 +88,9 @@ end
 # - maintenance-beam-app is the user that create the PRs. The GitHub token access belongs to this user.
 #     Also for dev/testing, the repositories are under maintenance-beam-app
 
+@dev_owner "maintenance-beam-app"
+@upstream_owner "maintenance-beam"
+
 config :maintenance,
   git_repo_url: "https://github.com/eksperimental/maintenance",
   author_github_account: "maintenance-beam-app",
@@ -98,36 +101,36 @@ config :maintenance,
     #   repo: "beam_langs_meta_data",
     #   main_branch: "main",
     #   owner: %{
-    #     upstream: "eksperimental",
-    #     origin: "maintenance-beam",
-    #     dev: "maintenance-beam-app"
+    #     origin: "eksperimental",
+    #     upstream: @upstream_owner,
+    #     dev: @dev_owner
     #   }
     # },
     # elixir: %{
     #   repo: "elixir",
     #   main_branch: "main",
-    #   owner: %{maintenance-beam@autistici.org
-    #     upstream: "elixir-lang",
-    #     origin: "maintenance-beam",
-    #     dev: "maintenance-beam-app"
+    #   owner: %{
+    #     origin: "elixir-lang",
+    #     upstream: @upstream_owner,
+    #     dev: @dev_owner
     #   }
     # },
     # otp: %{
     #   repo: "otp",
     #   main_branch: "master",
     #   owner: %{
-    #     upstream: "erlang",
-    #     origin: "maintenance-beam",
-    #     dev: "maintenance-beam-app"
+    #     origin: "erlang",
+    #     upstream: @upstream_owner,
+    #     dev: @dev_owner
     #   }
     # },
     sample_project: %{
       repo: "sample_project",
       main_branch: "main",
       owner: %{
-        upstream: "maintenance-beam",
         origin: "maintenance-beam",
-        dev: "maintenance-beam-app"
+        upstream: @upstream_owner,
+        dev: @dev_owner
       }
     }
   }
