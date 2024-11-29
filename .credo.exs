@@ -234,8 +234,9 @@
           {Credo.Check.Refactor.VariableRebinding, []},
           {Credo.Check.Warning.MapGetUnsafePass, []},
           {Credo.Check.Warning.MixEnv, []},
-          {Credo.Check.Warning.UnsafeToAtom, []},
-          {Credo.Check.Refactor.MapInto, []}
+          {Credo.Check.Warning.UnsafeToAtom, []}
+          # {Credo.Check.Refactor.MapInto, []},
+          # {Credo.Check.Warning.LazyLogging, []}
 
           #
           # Custom checks can be created using `mix credo.gen.check`.
@@ -245,7 +246,7 @@
           {Credo.Check.Refactor.PassAsyncInTestCases, []},
           {Credo.Check.Warning.LeakyEnvironment, []},
 
-          # These are not longer supported since
+          # These are no longer supported since
           {Credo.Check.Refactor.MapInto, []},
           {Credo.Check.Warning.LazyLogging, []}
         ]
