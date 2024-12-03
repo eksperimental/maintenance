@@ -88,8 +88,8 @@ end
 # - maintenance-beam-app is the user that create the PRs. The GitHub token access belongs to this user.
 #     Also for dev/testing, the repositories are under maintenance-beam-app
 
-@dev_owner "maintenance-beam-app"
-@upstream_owner "maintenance-beam"
+owner_upstream = "maintenance-beam"
+owner_dev = "maintenance-beam-app"
 
 config :maintenance,
   git_repo_url: "https://github.com/eksperimental/maintenance",
@@ -102,8 +102,8 @@ config :maintenance,
     #   main_branch: "main",
     #   owner: %{
     #     origin: "eksperimental",
-    #     upstream: @upstream_owner,
-    #     dev: @dev_owner
+    #     upstream: owner_upstream,
+    #     dev: owner_dev
     #   }
     # },
     # elixir: %{
@@ -111,28 +111,30 @@ config :maintenance,
     #   main_branch: "main",
     #   owner: %{
     #     origin: "elixir-lang",
-    #     upstream: @upstream_owner,
-    #     dev: @dev_owner
+    #     upstream: owner_upstream,
+    #     dev: owner_dev
     #   }
     # },
-    # otp: %{
-    #   repo: "otp",
-    #   main_branch: "master",
-    #   owner: %{
-    #     origin: "erlang",
-    #     upstream: @upstream_owner,
-    #     dev: @dev_owner
-    #   }
-    # },
-    sample_project: %{
-      repo: "sample_project",
-      main_branch: "main",
+    otp: %{
+      repo: "otp",
+      main_branch: "master",
       owner: %{
-        origin: "maintenance-beam",
-        upstream: @upstream_owner,
-        dev: @dev_owner
-      }
+        origin: "erlang",
+        upstream: owner_upstream,
+        dev: owner_dev
+      },
+      author_name: "Eksperimental",
+      author_email: "eksperimental@autistici.org"
     }
+    # sample_project: %{
+    #   repo: "sample_project",
+    #   main_branch: "main",
+    #   owner: %{
+    #     origin: "maintenance-beam",
+    #     upstream: owner_upstream,
+    #     dev: owner_dev
+    #   }
+    # }
   }
 
 # Import environment specific config. This must remain at the bottom

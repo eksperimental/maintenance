@@ -106,13 +106,4 @@ defmodule Maintenance do
   def env!() do
     Application.fetch_env!(@app_name, :env)
   end
-
-  @doc """
-  Returns `true` if environmental variable `MAINTENANCE_FULL_PRODUCTION`
-  has been set to `"yes"`, otherwise returns `false`.
-  """
-  @spec prod_release?() :: boolean()
-  def prod_release?() do
-    Application.fetch_env!(@app_name, :prod_release?)
-  end
 end

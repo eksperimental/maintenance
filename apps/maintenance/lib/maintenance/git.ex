@@ -17,16 +17,17 @@ defmodule Maintenance.Git do
   @spec config(Maintenance.project()) ::
           :ok | {:error, {Collectable.t(), exit_status :: non_neg_integer()}}
   def config(project) when is_project(project) do
+    author_name = Project.config(project, :author_name) || Maintenance.author_name()
+    author_email = Project.config(project, :author_email) || Maintenance.author_email()
+
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
     with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
          _ <-
-           System.cmd("git", ["config", "user.name", "#{Maintenance.author_name()}"],
-             cd: repo_path
-           ),
+           System.cmd("git", ~w(config user.name #{author_name}), cd: repo_path),
          _ <-
-           System.cmd("git", ~w(config user.email #{Maintenance.author_email()}), cd: repo_path),
+           System.cmd("git", ~w(config user.email #{author_email}), cd: repo_path),
          _ <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
          _ <- System.cmd("git", ~w(config fetch.fsckobjects true), cd: repo_path),
          _ <- System.cmd("git", ~w(config transfer.fsckobjects true), cd: repo_path),
@@ -44,7 +45,7 @@ defmodule Maintenance.Git do
   def get_last_commit_id(project) when is_project(project) do
     # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
 
-    config = Project.config(project)
+    config = Project.config!(project)
 
     response =
       System.cmd(
@@ -119,28 +120,32 @@ defmodule Maintenance.Git do
   """
   @spec create_repo(Maintenance.project()) :: :ok | {:error, term()}
   def create_repo(project) when is_project(project) do
-    config = Project.config(project)
+    config = Project.config!(project)
+
+    git_url_origin = Project.get_git_url(config, :origin)
+    git_url_upstream = Project.get_git_url(config, :upstream)
 
     with {_, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{Project.get_git_url(config, :origin)} --branch #{config.main_branch} #{path(project)})
-           ),
-         :ok <- config(project),
-         git_path <- path(project),
-         {_, 0} <- System.cmd("git", ~w(remote remove upstream), cd: git_path),
+             ~w(clone #{git_url_origin} --branch #{config.main_branch} #{path(project)})
+           )
+           |> dbg(),
+         :ok <- config(project) |> dbg(),
+         git_path <- path(project) |> dbg(),
+         {_, _} <- System.cmd("git", ~w(remote remove upstream), cd: git_path) |> dbg(),
          {_, 0} <-
            System.cmd(
              "git",
-             ~w(remote add upstream #{Project.get_git_url(config, :upstream)}),
+             ~w(remote add upstream #{git_url_upstream}),
              cd: git_path
-           ),
-         # _ <-
-         #   System.cmd("git", ~w(remote remove origin), cd: git_path),
+           )
+           |> dbg(),
+         _ <-
+           System.cmd("git", ~w(remote remove origin), cd: git_path),
          {_, 0} <-
-           System.cmd("git", ~w(remote add origin #{Project.get_git_url(config, :origin)}),
-             cd: git_path
-           ) do
+           System.cmd("git", ~w(remote add origin #{git_url_origin}), cd: git_path)
+           |> dbg() do
       :ok
     else
       error -> {:error, error}
@@ -182,7 +187,7 @@ defmodule Maintenance.Git do
     # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
     # cached: git rev-parse refs/heads/main
 
-    config = Project.config(project)
+    config = Project.config!(project)
 
     if repo?(path(project)) do
       response =
@@ -230,6 +235,22 @@ defmodule Maintenance.Git do
     else
       error -> {:error, error}
     end
+  end
+
+  defp checkout_new_branch(project) do
+    with {:ok, _value} <- cache_repo(project),
+         :ok <- checkout(project, Project.config!(project, :main_branch)),
+         {:ok, previous_branch} <- get_branch(project),
+         new_branch <- get_new_branch(project),
+         :ok <- checkout_new_branch(project, new_branch) do
+      {:ok, new_branch, previous_branch}
+    end
+  end
+
+  defp get_new_branch(project) do
+    project
+    |> to_string()
+    |> Util.unique_branch_name()
   end
 
   @spec checkout_new_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
@@ -301,9 +322,18 @@ defmodule Maintenance.Git do
   @spec submit_pr(Maintenance.project(), Maintenance.job(), map) :: :ok | {:error, term()}
   def submit_pr(project, job, data = %{title: title, db_key: db_key, db_value: db_value})
       when is_project(project) and is_atom(job) and is_map(data) do
-    config = Project.config(project)
+    config = Project.config!(project)
 
-    push(project, Project.get_git_url(config, :upstream))
+    remote =
+      if Maintenance.env!() == :prod do
+        :upstream
+      else
+        :dev
+      end
+
+    owner = Project.get_owner(config, remote)
+
+    push(project, Project.get_git_url(config, remote))
 
     client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token!()})
     {:ok, branch} = get_branch(project)
@@ -318,11 +348,9 @@ defmodule Maintenance.Git do
         If you find any issue in this PR, please kindly report it to
         #{Maintenance.git_repo_url()}/issues
         """),
-      "head" => Map.get(data, :head, Project.get_owner(config, :upstream) <> ":" <> branch),
+      "head" => Map.get(data, :head, owner <> ":" <> branch),
       "base" => Map.get(data, :base, config.main_branch)
     }
-
-    owner = Project.get_owner(config, :origin)
 
     case Tentacat.Pulls.create(client, owner, config.repo, body) do
       {pr_response_status, pr_github_response, _httpoison_response}
@@ -459,19 +487,26 @@ defmodule Maintenance.Git do
     end
   end
 
-  defp checkout_new_branch(project) do
-    with {:ok, _value} <- cache_repo(project),
-         :ok <- checkout(project, Maintenance.Project.config(project, :main_branch)),
-         {:ok, previous_branch} <- get_branch(project),
-         new_branch <- get_new_branch(project),
-         :ok <- checkout_new_branch(project, new_branch) do
-      {:ok, new_branch, previous_branch}
-    end
+  def setup_repo(project) when is_project(project) do
+    new_branch = get_new_branch(project)
+
+    setup_repo(project, new_branch)
   end
 
-  defp get_new_branch(project) do
-    project
-    |> to_string()
-    |> Util.unique_branch_name()
+  def setup_repo(project, new_branch) when is_project(project) and is_binary(new_branch) do
+    {:ok, _} = cache_repo(project)
+
+    main_branch = Project.config!(project, :main_branch)
+
+    :ok = checkout(project, main_branch)
+    {:ok, previous_branch} = get_branch(project)
+
+    if branch_exists?(project, new_branch) do
+      :ok = delete_branch(project, new_branch)
+    end
+
+    :ok = checkout_new_branch(project, new_branch)
+
+    {:ok, new_branch, previous_branch}
   end
 end

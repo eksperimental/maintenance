@@ -11,14 +11,11 @@ import Config
 # before starting your production server.
 
 host =
-  System.get_env("HOST") ||
-    raise """
-    environment variable HOST is missing.
-    """
+  System.get_env("HOST") || "localhost"
 
 config :maintenance_web, MaintenanceWeb.Endpoint,
   # url: [host: "localhost", port: 4000],
-  url: [host: host || "localhost", port: 4000],
+  url: [host: host, port: 4000],
   cache_static_manifest: "priv/static/cache_manifest.json"
 
 # ## SSL Support

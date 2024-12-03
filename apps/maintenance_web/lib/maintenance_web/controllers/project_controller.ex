@@ -12,6 +12,7 @@ defmodule MaintenanceWeb.ProjectController do
   end
 
   def show_jobs(conn, %{"project" => project}) do
+    # credo:disable-for-lines:3 Credo.Check.Warning.UnsafeToAtom
     jobs =
       project
       |> String.to_atom()

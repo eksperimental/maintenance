@@ -1,3 +1,4 @@
+# credo:disable-for-this-file Credo.Check.Refactor.AppendSingleItem
 defmodule MaintenanceJob.Unicode do
   @moduledoc """
   Updates the Unicode Character Database.
@@ -6,7 +7,6 @@ defmodule MaintenanceJob.Unicode do
   @behaviour MaintenanceJob
 
   import Maintenance, only: [is_project: 1]
-  import Maintenance.Project, only: [config: 1]
 
   require Logger
 
@@ -106,6 +106,7 @@ defmodule MaintenanceJob.Unicode do
   end
 
   # ELIXIR: The steps for creating the PR, are described at the top of the String.Unicode module source code:
+  # Please check them before running this job.
   # https://github.com/elixir-lang/elixir/blob/main/lib/elixir/unicode/unicode.ex
   #
   # How to update the Unicode files
@@ -123,6 +124,7 @@ defmodule MaintenanceJob.Unicode do
   # 8. Replace IdentifierType.txt by copying original
   #    (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
   # 9. Update String.Unicode.version/0 and on String module docs (version and link)
+
   @doc false
   @spec update(Maintenance.project(), version(), %{file_type() => contents()}) ::
           MaintenanceJob.status()
@@ -209,7 +211,7 @@ defmodule MaintenanceJob.Unicode do
   end
 
   # OTP: There is no specific documentation on how to update to a new Unicode version,
-  # the closes to this is https://github.com/erlang/otp/blob/master/lib/stdlib/uc_spec/README-UPDATE.txt
+  # the closest to this is https://github.com/erlang/otp/blob/master/lib/stdlib/uc_spec/README-UPDATE.txt
   # the main source of information is the escript that builds the unicode module:
   # https://github.com/erlang/otp/blob/master/lib/stdlib/uc_spec/gen_unicode_mod.escript
   # https://github.com/erlang/otp/blob/master/lib/stdlib/test/io_proto_SUITE.erl
@@ -242,12 +244,20 @@ defmodule MaintenanceJob.Unicode do
   # 4. Read the release notes by visiting https://www.unicode.org/versions/latest/
   # and assess if additional changes are necessary in the Erlang code.
   #
-  # 5. Replace all occurrences of previous version of Unicode with the new one in
+  # 5. Replace all occurrences of the previous version of Unicode with the new one in
   # this very same file (lib/stdlib/uc_spec/README-UPDATE.txt).
   # Remember to update these instructions if a new file is added or any other change
   # is required for future version updates.
   #
-  # 6. Run the test for the Unicode suite from the OTP repository root dir.
+  # 6. Check if the test file needs to be updated:
+  #
+  #    $ (cd lib/stdlib/uc_spec; escript gen_unicode_mod.escript update_tests; rm unicode_util.erl)
+  #
+  # If lib/stdlib/test/unicode_util_SUITE_data/unicode_table.bin is updated include it in
+  # the commit.
+  #
+  # 7. Run the test for the Unicode suite from the OTP repository root dir.
+  #
   #    $ export ERL_TOP=$PWD
   #    $ export PATH=$ERL_TOP/bin:$PATH
   #    $ ./otp_build all -a && ./otp_build tests
@@ -255,13 +265,14 @@ defmodule MaintenanceJob.Unicode do
   #    $ erl
   #    erl> ts:install().
   #    erl> ts:run(stdlib, unicode_SUITE, [batch]).
+  #    $ cd $ERL_TOP
   #
   def update(project = :otp, version, contents) do
     if pr_exists?(project, @job, version) do
       Util.info("PR exists: no update needed [#{project}, #{version}]")
       {:ok, :no_update_needed}
     else
-      Util.info("Writtings files in repo [#{project}, #{version}]")
+      Util.info("Writings files in repo [#{project}, #{version}]")
 
       git_path = Git.path(project)
       unicode_spec_dir = Path.join([git_path, "lib", "stdlib", "uc_spec"])
@@ -290,7 +301,18 @@ defmodule MaintenanceJob.Unicode do
             |> Path.join(Path.basename(file_path))
             |> File.write!(Map.get(contents[file_type], file_path))
           end
-        end
+        end ++
+          [
+            fn ->
+              System.cmd("escript", ~w(gen_unicode_mod.escript update_tests),
+                cd: Path.join([git_path, "lib/stdlib/uc_spec"])
+              )
+
+              System.cmd("rm", ~w(unicode_util.erl),
+                cd: Path.join([git_path, "lib/stdlib/uc_spec"])
+              )
+            end
+          ]
 
       # lib/stdlib/uc_spec/README-UPDATE.txt
       fn_task_readme_update = fn ->
@@ -338,20 +360,8 @@ defmodule MaintenanceJob.Unicode do
   @spec run_tasks(Maintenance.project(), [(-> :ok)], version()) :: MaintenanceJob.status()
   def run_tasks(project, tasks, version)
       when is_list(tasks) do
-    {:ok, _} = Git.cache_repo(project)
-
-    config = config(project)
-
-    :ok = Git.checkout(project, config.main_branch)
-    {:ok, previous_branch} = Git.get_branch(project)
-
     new_branch = branch(version)
-
-    if Git.branch_exists?(project, new_branch) do
-      :ok = Git.delete_branch(project, new_branch)
-    end
-
-    :ok = Git.checkout_new_branch(project, new_branch)
+    {:ok, _new_branch, previous_branch} = Git.setup_repo(project, new_branch)
 
     tasks
     |> Task.async_stream(& &1.(), timeout: :infinity)
@@ -400,6 +410,7 @@ defmodule MaintenanceJob.Unicode do
 
   defp pr_exists?(project, job, version)
        when is_project(project) and is_atom(job) and is_version(version) do
+    dbg(get_unicode_db_entry(project, job, version))
     not (!get_unicode_db_entry(project, job, version))
   end
 

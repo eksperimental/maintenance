@@ -96,7 +96,7 @@ defmodule MaintenanceJob.SampleJob do
   def needs_update?(_project, job, {:year_month, year_month_string}) when is_atom(job) do
     case get_remote_file_contents(@year_month_url) do
       {:ok, contents} ->
-        year_month_string != String.trim(contents)
+        dbg(year_month_string != String.trim(contents))
 
       :error ->
         true
@@ -106,6 +106,8 @@ defmodule MaintenanceJob.SampleJob do
   @impl MaintenanceJob
   @spec run_tasks(Maintenance.project(), [(-> :ok)], term()) :: MaintenanceJob.status()
   def run_tasks(project, tasks, _additional_term \\ nil) when is_list(tasks) do
+    {:ok, _new_branch, _previous_branch} = Git.setup_repo(project)
+
     [ok: {:year_month, year_month_string}] =
       tasks
       |> Task.async_stream(& &1.(), timeout: :infinity)
