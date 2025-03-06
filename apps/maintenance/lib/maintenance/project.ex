@@ -50,8 +50,8 @@ defmodule Maintenance.Project do
     {:ok, results} = DB.select(project, reverse: true)
 
     Enum.filter(results, fn
-      {{^job, _}, _v} -> true
-      {^job, _v} -> true
+      {{^job, _other}, _value} -> true
+      {^job, _value} -> true
       _other -> false
     end)
   end

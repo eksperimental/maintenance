@@ -7,9 +7,8 @@ defmodule Maintenance do
   require Logger
 
   @app_name :maintenance
-  # TODO: replace bellow :maintenance with @app when minimum required Elixir version fixes this
-  @git_repo_url Application.compile_env(:maintenance, :git_repo_url)
-  @data_dir Application.compile_env!(:maintenance, :data_dir)
+  @git_repo_url Application.compile_env(@app_name, :git_repo_url)
+  @data_dir Application.compile_env!(@app_name, :data_dir)
 
   @type project :: Maintenance.Project.t()
   @type job :: MaintenanceJob.t()

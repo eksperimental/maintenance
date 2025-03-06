@@ -96,7 +96,7 @@ defmodule MaintenanceJob.SampleJob do
   def needs_update?(_project, job, {:year_month, year_month_string}) when is_atom(job) do
     case get_remote_file_contents(@year_month_url) do
       {:ok, contents} ->
-        dbg(year_month_string != String.trim(contents))
+        year_month_string != String.trim(contents)
 
       :error ->
         true

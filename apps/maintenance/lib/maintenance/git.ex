@@ -23,15 +23,17 @@ defmodule Maintenance.Git do
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
-    with {_, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
-         _ <-
+    with {_response_string, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
+         _response_string <-
            System.cmd("git", ~w(config user.name #{author_name}), cd: repo_path),
-         _ <-
+         _response_string <-
            System.cmd("git", ~w(config user.email #{author_email}), cd: repo_path),
-         _ <- System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
-         _ <- System.cmd("git", ~w(config fetch.fsckobjects true), cd: repo_path),
-         _ <- System.cmd("git", ~w(config transfer.fsckobjects true), cd: repo_path),
-         _ <- System.cmd("git", ~w(config receive.fsckobjects true), cd: repo_path) do
+         _response_string <-
+           System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
+         _response_string <- System.cmd("git", ~w(config fetch.fsckobjects true), cd: repo_path),
+         _response_string <-
+           System.cmd("git", ~w(config transfer.fsckobjects true), cd: repo_path),
+         _response_string <- System.cmd("git", ~w(config receive.fsckobjects true), cd: repo_path) do
       :ok
     else
       error -> {:error, error}
@@ -62,7 +64,7 @@ defmodule Maintenance.Git do
 
         {:ok, commit_id}
 
-      {_, _} = error ->
+      {_response_string, _exit_status} = error ->
         {:error, error}
     end
   end
@@ -89,7 +91,7 @@ defmodule Maintenance.Git do
     last_commit_id =
       case get_last_commit_id(project) do
         {:ok, last_commit_id} -> last_commit_id
-        {:error, _} -> nil
+        {:error, _error} -> nil
       end
 
     case get_last_cached_commit_id(project) do
@@ -108,7 +110,7 @@ defmodule Maintenance.Git do
         :ok = create_repo(project)
         {:ok, %{cached?: false}}
 
-      {:error, _} ->
+      {:error, _error} ->
         Util.info("Creating Git repository [#{project}]")
         :ok = create_repo(project)
         {:ok, %{cached?: false}}
@@ -125,27 +127,25 @@ defmodule Maintenance.Git do
     git_url_origin = Project.get_git_url(config, :origin)
     git_url_upstream = Project.get_git_url(config, :upstream)
 
-    with {_, 0} <-
+    with {_response_string, 0} <-
            System.cmd(
              "git",
              ~w(clone #{git_url_origin} --branch #{config.main_branch} #{path(project)})
-           )
-           |> dbg(),
-         :ok <- config(project) |> dbg(),
-         git_path <- path(project) |> dbg(),
-         {_, _} <- System.cmd("git", ~w(remote remove upstream), cd: git_path) |> dbg(),
-         {_, 0} <-
+           ),
+         :ok <- config(project),
+         git_path <- path(project),
+         {_response_string, _exit_status} <-
+           System.cmd("git", ~w(remote remove upstream), cd: git_path),
+         {_response_string, 0} <-
            System.cmd(
              "git",
              ~w(remote add upstream #{git_url_upstream}),
              cd: git_path
-           )
-           |> dbg(),
-         _ <-
+           ),
+         {_response_string, _exit_status} <-
            System.cmd("git", ~w(remote remove origin), cd: git_path),
-         {_, 0} <-
-           System.cmd("git", ~w(remote add origin #{git_url_origin}), cd: git_path)
-           |> dbg() do
+         {_response_string, 0} <-
+           System.cmd("git", ~w(remote add origin #{git_url_origin}), cd: git_path) do
       :ok
     else
       error -> {:error, error}
@@ -167,10 +167,10 @@ defmodule Maintenance.Git do
     git_path = path(project)
 
     with :ok <- config(project),
-         # {_, 0} <- System.cmd("git", ~w(pull #{remote} HEAD -f), cd: git_path),
-         {_, 0} <- System.cmd("git", ~w(reset --hard HEAD), cd: git_path),
-         {_, 0} <- System.cmd("git", ~w(clean -f -d), cd: git_path),
-         {_, 0} <- System.cmd("git", ~w(fetch #{remote} HEAD -f), cd: git_path) do
+         # {_response_string, 0} <- System.cmd("git", ~w(pull #{remote} HEAD -f), cd: git_path),
+         {_response_string, 0} <- System.cmd("git", ~w(reset --hard HEAD), cd: git_path),
+         {_response_string, 0} <- System.cmd("git", ~w(clean -f -d), cd: git_path),
+         {_response_string, 0} <- System.cmd("git", ~w(fetch #{remote} HEAD -f), cd: git_path) do
       :ok
     else
       error ->
@@ -195,7 +195,7 @@ defmodule Maintenance.Git do
 
       case response do
         {commit_id, 0} -> {:ok, String.trim(commit_id)}
-        {_, _} = error -> {:error, error}
+        {_response_string, _exit_status} = error -> {:error, error}
       end
     else
       {:ok, nil}
@@ -215,8 +215,8 @@ defmodule Maintenance.Git do
   @spec commit(Maintenance.project(), String.t()) :: :ok | {:error, term}
   def commit(project, message) when is_project(project) when is_binary(message) do
     with git_path <- path(project),
-         {_, 0} <- System.cmd("git", ~w(add -- .), cd: git_path),
-         {_, 0} <-
+         {_response_string, 0} <- System.cmd("git", ~w(add -- .), cd: git_path),
+         {_response_string, 0} <-
            System.cmd("git", ["-c", "commit.gpgsign=false", "commit", "-m", message],
              cd: git_path
            ) do
@@ -230,7 +230,7 @@ defmodule Maintenance.Git do
   @spec checkout(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
-         {_, 0} <- System.cmd("git", ["checkout", branch], cd: git_path) do
+         {_response_string, 0} <- System.cmd("git", ["checkout", branch], cd: git_path) do
       :ok
     else
       error -> {:error, error}
@@ -256,7 +256,7 @@ defmodule Maintenance.Git do
   @spec checkout_new_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout_new_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
-         {_, 0} <- System.cmd("git", ["checkout", "-b", branch], cd: git_path) do
+         {_response_string, 0} <- System.cmd("git", ["checkout", "-b", branch], cd: git_path) do
       :ok
     else
       error -> {:error, error}
@@ -276,7 +276,7 @@ defmodule Maintenance.Git do
   @spec branch_exists?(Maintenance.project(), branch) :: boolean
   def branch_exists?(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
-         {_, 0} <-
+         {_response_string, 0} <-
            System.cmd("git", ["show-ref", "--quiet", "refs/heads/#{branch}"], cd: git_path) do
       true
     else
@@ -289,7 +289,7 @@ defmodule Maintenance.Git do
     auth_url = Maintenance.auth_url(remote_url)
 
     case System.cmd("git", ["push", auth_url, "HEAD", "-f"], cd: path(project)) do
-      {_, 0} -> :ok
+      {_response_string, 0} -> :ok
       error -> {:error, error}
     end
   end
@@ -304,7 +304,7 @@ defmodule Maintenance.Git do
     git_path = path(project)
 
     case System.cmd("git", List.flatten(["add", files]), cd: git_path) do
-      {_, 0} -> :ok
+      {_response_string, 0} -> :ok
       error -> {:error, error}
     end
   end
@@ -312,7 +312,7 @@ defmodule Maintenance.Git do
   @spec delete_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def delete_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
-         {_, 0} <- System.cmd("git", ["branch", "-D", branch], cd: git_path) do
+         {_response_string, 0} <- System.cmd("git", ["branch", "-D", branch], cd: git_path) do
       :ok
     else
       error -> {:error, error}
@@ -487,14 +487,16 @@ defmodule Maintenance.Git do
     end
   end
 
+  @spec setup_repo(Maintenance.project()) :: {:ok, branch(), branch()}
   def setup_repo(project) when is_project(project) do
     new_branch = get_new_branch(project)
 
     setup_repo(project, new_branch)
   end
 
+  @spec setup_repo(Maintenance.project(), branch()) :: {:ok, branch(), branch()}
   def setup_repo(project, new_branch) when is_project(project) and is_binary(new_branch) do
-    {:ok, _} = cache_repo(project)
+    {:ok, _map} = cache_repo(project)
 
     main_branch = Project.config!(project, :main_branch)
 

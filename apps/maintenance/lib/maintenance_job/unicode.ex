@@ -381,8 +381,9 @@ defmodule MaintenanceJob.Unicode do
         :ok ->
           {:ok, :updated}
 
-        {:error, _} = error ->
+        {:error, _value} = error ->
           IO.warn("Could not create PR, failed with: " <> inspect(error))
+
           error
       end
 
@@ -410,7 +411,6 @@ defmodule MaintenanceJob.Unicode do
 
   defp pr_exists?(project, job, version)
        when is_project(project) and is_atom(job) and is_version(version) do
-    dbg(get_unicode_db_entry(project, job, version))
     not (!get_unicode_db_entry(project, job, version))
   end
 
@@ -419,7 +419,7 @@ defmodule MaintenanceJob.Unicode do
     {:ok, result} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [take: 1])
 
     case result do
-      [{_, result}] ->
+      [{_key, result}] ->
         not (Version.compare(version, result.version) == :gt)
 
       [] ->
@@ -523,7 +523,7 @@ defmodule MaintenanceJob.Unicode do
       {:ok, contents} ->
         {:ok, contents}
 
-      {:error, _} ->
+      {:error, _error} ->
         case get!(file_type, latest_version) do
           {:ok, contents} ->
             {:ok, contents}
@@ -639,7 +639,7 @@ defmodule MaintenanceJob.Unicode do
       {:ok, binary} ->
         {:ok, :erlang.binary_to_term(binary)}
 
-      {:error, _} = error ->
+      {:error, _error_value} = error ->
         error
     end
   end
