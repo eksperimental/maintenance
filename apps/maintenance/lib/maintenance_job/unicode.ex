@@ -226,6 +226,7 @@ defmodule MaintenanceJob.Unicode do
   #   - CaseFolding.txt
   #   - CompositionExclusions.txt
   #   - EastAsianWidth.txt
+  #   - IndicSyllabicCategory.txt
   #   - PropList.txt
   #   - SpecialCasing.txt
   #   - UnicodeData.txt
@@ -285,6 +286,7 @@ defmodule MaintenanceJob.Unicode do
               {unicode_spec_dir, :UCD, "CaseFolding.txt"},
               {unicode_spec_dir, :UCD, "CompositionExclusions.txt"},
               {unicode_spec_dir, :UCD, "EastAsianWidth.txt"},
+              {unicode_spec_dir, :UCD, "IndicSyllabicCategory.txt"},
               {unicode_spec_dir, :UCD, "PropList.txt"},
               {unicode_spec_dir, :UCD, "SpecialCasing.txt"},
               {unicode_spec_dir, :UCD, "UnicodeData.txt"},
