@@ -79,10 +79,6 @@ config :maintenance, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-if File.exists?(Path.join(Path.expand(__DIR__), "env.secrets.exs")) do
-  import_config "env.secrets.exs"
-end
-
 # NOTE:
 # - maintenance-beam is the organization under which repositories are forked, and the PRs are created.
 # - maintenance-beam-app is the user that create the PRs. The GitHub token access belongs to this user.
