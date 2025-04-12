@@ -6,6 +6,28 @@
 
 Feel free to open up an issue <https://github.com/eksperimental/beam_meta/issues> with your request/report.
 
+## Usage
+
+- 1. Store `SECRET_KEY_BASE` and `GITHUB_ACCESS_TOKEN` in `.env`. You can use `.sample_env` as a base.
+- 2. Make sure `.env` is loaded. If you run `source .env` in your terminal.
+- 3. Run `iex -S mix phx.server`.
+
+The following commands can be run within IEx.
+
+```elixir
+# List projects
+iex> Maintenance.projects()
+[:otp]
+
+# List jobs for a project
+iex> Maintenance.jobs(:otp)
+[:unicode]
+
+# To run a specific job for a certain project
+iex> Maintenance.Runner.update(:otp, :unicode)
+{:ok, :no_update_needed}
+```
+
 ## Contact
 
 Eksperimental <eksperimental (at) autistici (dot) org>
