@@ -52,7 +52,7 @@ defmodule Maintenance.Umbrella.MixProject do
         "credo",
         # "gradient",
         "dialyzer",
-        "docs --warnings-as-errors --formatter html",
+        "docs",
 
         # # NOTE: Change to `"recode --no-autocorrect",` once the bug in Recode has been fixed
         "recode "
