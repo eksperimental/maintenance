@@ -124,6 +124,7 @@ defmodule MaintenanceJob.Unicode do
   # 8. Replace IdentifierType.txt by copying original
   #    (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
   # 9. Update String.Unicode.version/0 and on String module docs (version and link)
+  # 10. make unicode
 
   @doc false
   @spec update(Maintenance.project(), version(), %{file_type() => contents()}) ::
