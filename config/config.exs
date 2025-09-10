@@ -102,15 +102,15 @@ config :maintenance,
     #     dev: owner_dev
     #   }
     # },
-    # elixir: %{
-    #   repo: "elixir",
-    #   main_branch: "main",
-    #   owner: %{
-    #     origin: "elixir-lang",
-    #     upstream: owner_upstream,
-    #     dev: owner_dev
-    #   }
-    # },
+    elixir: %{
+      repo: "elixir",
+      main_branch: "main",
+      owner: %{
+        origin: "elixir-lang",
+        upstream: owner_upstream,
+        dev: owner_dev
+      }
+    },
     otp: %{
       repo: "otp",
       main_branch: "master",
