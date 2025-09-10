@@ -485,14 +485,14 @@ defmodule MaintenanceJob.Unicode do
   @spec get!(file_type, version) :: {:ok, contents} | {:error, Mint.Types.status()}
         when file_type: :UCD | :UTS39
   def get!(:UCD, version) when is_version(version) do
-    get!(:UCD, version, "https://www.unicode.org/Public/zipped/#{version}/UCD.zip")
+    get!(:UCD, version, "https://www.unicode.org/Public/#{version}/ucd/UCD.zip")
   end
 
   def get!(:UTS39, version) when is_version(version) do
     get!(
       :UTS39,
       version,
-      "https://www.unicode.org/Public/security/#{version}/uts39-data-#{version}.zip"
+      "https://www.unicode.org/Public/#{version}/security/uts39-data-#{version}.zip"
     )
   end
 
