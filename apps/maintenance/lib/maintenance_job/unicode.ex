@@ -226,6 +226,7 @@ defmodule MaintenanceJob.Unicode do
   # Nosubfolder should be created.
   #   - CaseFolding.txt
   #   - CompositionExclusions.txt
+  #   - DerivedCoreProperties.txt
   #   - EastAsianWidth.txt
   #   - IndicSyllabicCategory.txt
   #   - PropList.txt
@@ -286,6 +287,7 @@ defmodule MaintenanceJob.Unicode do
               # lib/stdlib/uc_spec/
               {unicode_spec_dir, :UCD, "CaseFolding.txt"},
               {unicode_spec_dir, :UCD, "CompositionExclusions.txt"},
+              {unicode_spec_dir, :UCD, "DerivedCoreProperties.txt"},
               {unicode_spec_dir, :UCD, "EastAsianWidth.txt"},
               {unicode_spec_dir, :UCD, "IndicSyllabicCategory.txt"},
               {unicode_spec_dir, :UCD, "PropList.txt"},
