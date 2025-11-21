@@ -175,8 +175,8 @@ defmodule MaintenanceJob.Unicode do
           end
         end
 
+      # Update String.Unicode.version/0
       fn_task_special_casing = fn ->
-        # Update String.Unicode.version/0
         string_unicode_module_path = Path.join([elixir_dir, "unicode", "unicode.ex"])
         regex_string_unicode_module = ~r/(def\s+version,\s+do:\s+)({\d+\s*,\s+\d+\s*,\s+\d+})/
 
@@ -189,6 +189,24 @@ defmodule MaintenanceJob.Unicode do
           )
 
         File.write(string_unicode_module_path, string_unicode_module)
+      end
+
+      # Update Unicode version in lib/elixir/pages/references/unicode-syntax.md
+      fn_task_unicode_syntax = fn ->
+        unicode_syntax_path = Path.join([elixir_dir, "pages/references/unicode-syntax.md"])
+
+        regex_unicode_syntax = ~r{
+          (\[Unicode\s+Standard\s+Annex[^\]]+]
+          \(https://[^\]]*\),\s+version\s+)
+          \d+\.\d+(?:\.\d+)?  # Captures version like 17.0 or 17.0.1
+        }x
+
+        unicode_syntax_content =
+          unicode_syntax_path
+          |> File.read!()
+          |> String.replace(regex_unicode_syntax, "\\g{1}#{version}")
+
+        File.write(unicode_syntax_path, unicode_syntax_content)
       end
 
       # Update String.Unicode.version/0 and on String module docs (version and link)
@@ -206,7 +224,12 @@ defmodule MaintenanceJob.Unicode do
         File.write(string_module_path, string_module)
       end
 
-      all_fn_tasks = [fn_task_special_casing, fn_task_string_module | fn_tasks]
+      all_fn_tasks = [
+        fn_task_special_casing,
+        fn_task_unicode_syntax,
+        fn_task_string_module | fn_tasks
+      ]
+
       run_tasks(project, all_fn_tasks, version)
     end
   end
