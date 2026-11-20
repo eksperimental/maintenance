@@ -327,6 +327,20 @@ defmodule Maintenance.Git do
     end
   end
 
+  @doc """
+  Discards every uncommitted change in the working tree, including untracked files.
+  """
+  @spec discard_changes(Maintenance.project()) :: :ok | {:error, term()}
+  def discard_changes(project) when is_project(project) do
+    with git_path <- path(project),
+         {_response_string, 0} <- System.cmd("git", ~w(reset --hard HEAD), cd: git_path),
+         {_response_string, 0} <- System.cmd("git", ~w(clean -f -d), cd: git_path) do
+      :ok
+    else
+      error -> {:error, error}
+    end
+  end
+
   @spec delete_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def delete_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),

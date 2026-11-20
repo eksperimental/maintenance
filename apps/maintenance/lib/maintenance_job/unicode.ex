@@ -327,18 +327,7 @@ defmodule MaintenanceJob.Unicode do
             |> Path.join(Path.basename(file_path))
             |> File.write!(Map.get(contents[file_type], file_path))
           end
-        end ++
-          [
-            fn ->
-              System.cmd("escript", ~w(gen_unicode_mod.escript update_tests),
-                cd: Path.join([git_path, "lib/stdlib/uc_spec"])
-              )
-
-              System.cmd("rm", ~w(unicode_util.erl),
-                cd: Path.join([git_path, "lib/stdlib/uc_spec"])
-              )
-            end
-          ]
+        end
 
       # lib/stdlib/uc_spec/README-UPDATE.txt
       fn_task_readme_update = fn ->
@@ -369,8 +358,28 @@ defmodule MaintenanceJob.Unicode do
         File.write(gen_unicode_path, string_gen_unicode)
       end
 
-      all_fn_tasks = [fn_task_readme_update, fn_task_gen_unicode | fn_tasks]
-      run_tasks(project, all_fn_tasks, version)
+      # gen_unicode_mod.escript reads the files written above and its own
+      # spec_version(), so it must run only after every other task has finished.
+      fn_task_update_tests = fn ->
+        Enum.each([fn_task_readme_update, fn_task_gen_unicode | fn_tasks], & &1.())
+        update_otp_tests(unicode_spec_dir)
+      end
+
+      run_tasks(project, [fn_task_update_tests], version)
+    end
+  end
+
+  defp update_otp_tests(unicode_spec_dir) do
+    case System.cmd("escript", ~w(gen_unicode_mod.escript update_tests),
+           cd: unicode_spec_dir,
+           stderr_to_stdout: true
+         ) do
+      {_output, 0} ->
+        System.cmd("rm", ~w(unicode_util.erl), cd: unicode_spec_dir)
+        :ok
+
+      {output, exit_status} ->
+        {:error, {:escript_failed, exit_status, output}}
     end
   end
 
@@ -383,16 +392,34 @@ defmodule MaintenanceJob.Unicode do
   end
 
   @impl MaintenanceJob
-  @spec run_tasks(Maintenance.project(), [(-> :ok)], version()) :: MaintenanceJob.status()
+  @spec run_tasks(Maintenance.project(), [(-> :ok | {:error, term()})], version()) ::
+          MaintenanceJob.status()
   def run_tasks(project, tasks, version)
       when is_list(tasks) do
     new_branch = branch(version)
     {:ok, _new_branch, previous_branch} = Git.setup_repo(project, new_branch)
 
-    tasks
-    |> Task.async_stream(& &1.(), timeout: :infinity)
-    |> Stream.run()
+    failure =
+      tasks
+      |> Task.async_stream(& &1.(), timeout: :infinity)
+      |> Enum.find(&(&1 != {:ok, :ok}))
 
+    case failure do
+      nil ->
+        commit_and_submit_pr(project, version, previous_branch)
+
+      {:ok, error} ->
+        IO.warn("Unicode update failed, nothing was committed: " <> inspect(error))
+
+        :ok = Git.discard_changes(project)
+        :ok = Git.checkout(project, previous_branch)
+        :ok = Git.delete_branch(project, new_branch)
+
+        error
+    end
+  end
+
+  defp commit_and_submit_pr(project, version, previous_branch) do
     # Commit
     :ok = Git.commit(project, commit_msg(version))
 
