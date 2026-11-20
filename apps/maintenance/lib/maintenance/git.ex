@@ -3,11 +3,8 @@ defmodule Maintenance.Git do
   Module that deals with the Git commands.
   """
 
-  import Maintenance, only: [cache_path: 0, is_project: 1, is_job: 1]
+  import Maintenance, only: [cache_path: 0, is_project: 1]
 
-  require Logger
-
-  alias Maintenance.Github
   alias Maintenance.Project
   alias Maintenance.Util
 
@@ -47,12 +44,10 @@ defmodule Maintenance.Git do
   def get_last_commit_id(project) when is_project(project) do
     # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
 
-    config = Project.config!(project)
-
     response =
       System.cmd(
         "git",
-        ~w(ls-remote #{Project.get_git_url(config, :origin)} refs/heads/#{config.main_branch})
+        ~w(ls-remote #{Project.git_url(project)} refs/heads/#{Project.config!(project, :main_branch)})
       )
 
     case response do
@@ -122,30 +117,12 @@ defmodule Maintenance.Git do
   """
   @spec create_repo(Maintenance.project()) :: :ok | {:error, term()}
   def create_repo(project) when is_project(project) do
-    config = Project.config!(project)
-
-    git_url_origin = Project.get_git_url(config, :origin)
-    git_url_upstream = Project.get_git_url(config, :upstream)
-
     with {_response_string, 0} <-
            System.cmd(
              "git",
-             ~w(clone #{git_url_origin} --branch #{config.main_branch} #{path(project)})
+             ~w(clone #{Project.git_url(project)} --branch #{Project.config!(project, :main_branch)} #{path(project)})
            ),
-         :ok <- config(project),
-         git_path <- path(project),
-         {_response_string, _exit_status} <-
-           System.cmd("git", ~w(remote remove upstream), cd: git_path),
-         {_response_string, 0} <-
-           System.cmd(
-             "git",
-             ~w(remote add upstream #{git_url_upstream}),
-             cd: git_path
-           ),
-         {_response_string, _exit_status} <-
-           System.cmd("git", ~w(remote remove origin), cd: git_path),
-         {_response_string, 0} <-
-           System.cmd("git", ~w(remote add origin #{git_url_origin}), cd: git_path) do
+         :ok <- config(project) do
       :ok
     else
       error -> {:error, error}
@@ -241,22 +218,6 @@ defmodule Maintenance.Git do
     end
   end
 
-  defp checkout_new_branch(project) do
-    with {:ok, _value} <- cache_repo(project),
-         :ok <- checkout(project, Project.config!(project, :main_branch)),
-         {:ok, previous_branch} <- get_branch(project),
-         new_branch <- get_new_branch(project),
-         :ok <- checkout_new_branch(project, new_branch) do
-      {:ok, new_branch, previous_branch}
-    end
-  end
-
-  defp get_new_branch(project) do
-    project
-    |> to_string()
-    |> Util.unique_branch_name()
-  end
-
   @spec checkout_new_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout_new_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
@@ -285,6 +246,37 @@ defmodule Maintenance.Git do
       true
     else
       _other -> false
+    end
+  end
+
+  @doc """
+  Returns whether the cached checkout has `branch` with commits the main branch does not have.
+  """
+  @spec branch_ahead?(Maintenance.project(), branch) :: boolean
+  def branch_ahead?(project, branch) when is_project(project) and is_binary(branch) do
+    main_branch = Project.config!(project, :main_branch)
+    checkout = path(project)
+
+    with true <- File.dir?(checkout),
+         {count, 0} <-
+           System.cmd("git", ["rev-list", "--count", "#{main_branch}..#{branch}", "--"],
+             cd: checkout,
+             stderr_to_stdout: true
+           ) do
+      String.trim(count) != "0"
+    else
+      _other -> false
+    end
+  end
+
+  @doc """
+  Returns the subject, the first line of the message, of the last commit of `branch`.
+  """
+  @spec commit_subject(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
+  def commit_subject(project, branch) when is_project(project) and is_binary(branch) do
+    case System.cmd("git", ["log", "-1", "--format=%s", branch, "--"], cd: path(project)) do
+      {subject, 0} -> {:ok, String.trim(subject)}
+      error -> {:error, error}
     end
   end
 
@@ -350,54 +342,6 @@ defmodule Maintenance.Git do
     end
   end
 
-  @doc false
-  @spec pull_request_remote() :: :upstream | :dev
-  def pull_request_remote() do
-    if Maintenance.env!() == :prod do
-      :upstream
-    else
-      :dev
-    end
-  end
-
-  @spec submit_pr(Maintenance.project(), Maintenance.job(), map) :: :ok | {:error, term()}
-  def submit_pr(project, job, data = %{title: title})
-      when is_project(project) and is_atom(job) and is_map(data) do
-    config = Project.config!(project)
-    remote = pull_request_remote()
-
-    owner = Project.get_owner(config, remote)
-    {:ok, branch} = get_branch(project)
-
-    body = %{
-      "title" => title,
-      "body" =>
-        Map.get(data, :body, """
-        This is an automated commit generated by the Maintenance project.
-        #{Maintenance.git_repo_url()}
-
-        If you find any issue in this PR, please kindly report it to
-        #{Maintenance.git_repo_url()}/issues
-        """),
-      "head" => Map.get(data, :head, owner <> ":" <> branch),
-      "base" => Map.get(data, :base, config.main_branch)
-    }
-
-    if Maintenance.publish?() do
-      with :ok <- push(project, Project.get_git_url(config, remote)),
-           {:ok, _pull_request} <- Github.create_pull_request(owner, config.repo, body) do
-        :ok
-      end
-    else
-      Logger.info(
-        "Publishing disabled. Skipped pushing #{branch} to #{remote} and opening a pull request " <>
-          "on #{owner}/#{config.repo}: #{inspect(body, pretty: true)}"
-      )
-
-      :ok
-    end
-  end
-
   @spec get_ref_date_time(Maintenance.project(), String.t()) ::
           {:ok, DateTime.t()} | {:error, term}
   def get_ref_date_time(project, ref) when is_project(project) when is_binary(ref) do
@@ -427,75 +371,6 @@ defmodule Maintenance.Git do
       error ->
         {:error, error}
     end
-  end
-
-  @spec checkout_new_branch_and_produce_commit!(
-          Maintenance.project(),
-          Maintenance.job(),
-          String.t(),
-          map()
-        ) :: {:ok, :updated | :no_update_needed}
-  def checkout_new_branch_and_produce_commit!(project, job, commit_message, data)
-      when is_project(project) and is_job(job) and is_binary(commit_message) and is_map(data) do
-    {:ok, _new_branch, previous_branch} = checkout_new_branch(project)
-
-    case produce_commit(project, job, commit_message, data) do
-      {:ok, status} ->
-        :ok = checkout(project, previous_branch)
-
-        {:ok, status}
-
-      {:error, exception} ->
-        :ok = checkout(project, previous_branch)
-
-        raise(exception)
-    end
-  end
-
-  @spec produce_commit(Maintenance.project(), Maintenance.job(), String.t(), map()) ::
-          {:ok, :updated | :no_update_needed} | {:error, Exception.t()}
-  def produce_commit(project, job, commit_message, data)
-      when is_project(project) and is_job(job) and is_binary(commit_message) and is_map(data) do
-    case commit(project, commit_message) do
-      :ok ->
-        produce_submit_pr(project, job, data)
-
-      {:error, error} ->
-        with {msg, 1} <- error,
-             "nothing to commit, working tree clean" <-
-               msg
-               |> String.trim()
-               |> String.split("\n")
-               |> List.last() do
-          Util.info("Project is already up-to-date: " <> inspect(error))
-
-          {:ok, :no_update_needed}
-        else
-          _other ->
-            exception = %RuntimeError{message: "Could not commit: " <> inspect(error)}
-
-            {:error, exception}
-        end
-    end
-  end
-
-  defp produce_submit_pr(project, job, data) do
-    case submit_pr(project, job, data) do
-      :ok ->
-        {:ok, :updated}
-
-      {:error, error} = result ->
-        IO.warn("Could not create PR, failed with: " <> inspect(result))
-
-        {:error, error}
-    end
-  end
-
-  @spec setup_repo(Maintenance.project()) :: {:ok, branch(), branch()}
-  def setup_repo(project) when is_project(project) do
-    new_branch = get_new_branch(project)
-
-    setup_repo(project, new_branch)
   end
 
   @spec setup_repo(Maintenance.project(), branch()) :: {:ok, branch(), branch()}

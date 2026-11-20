@@ -14,45 +14,31 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-config :maintenance, env: config_env()
-
 config :maintenance, data_dir: Path.join(Path.expand("~"), "maintenance_data")
 
 config :maintenance, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-# NOTE:
-# - maintenance-beam is the organization under which repositories are forked, and the PRs are created.
-# - maintenance-beam-app is the user that create the PRs. The GitHub token access belongs to this user.
-#     Also for dev/testing, the repositories are under maintenance-beam-app
-
-owner_upstream = "maintenance-beam"
-owner_dev = "maintenance-beam-app"
-
+# Pull requests are opened inside a fork, never in the upstream project.
+# - maintenance-beam is the organization under which repositories are forked.
+# - maintenance-beam-app is the user that creates the PRs. The GitHub access token belongs to this user.
 config :maintenance,
   git_repo_url: "https://github.com/eksperimental/maintenance",
   author_github_account: "maintenance-beam-app",
   author_name: "Maintenance App",
   author_email: "eksperimental@tutamail.com",
+  forks: ["maintenance-beam", "maintenance-beam-app"],
   project_configs: %{
     elixir: %{
       repo: "elixir",
       main_branch: "main",
-      owner: %{
-        origin: "elixir-lang",
-        upstream: owner_upstream,
-        dev: owner_dev
-      }
+      owner: "elixir-lang"
     },
     otp: %{
       repo: "otp",
       main_branch: "master",
-      owner: %{
-        origin: "erlang",
-        upstream: owner_upstream,
-        dev: owner_dev
-      },
+      owner: "erlang",
       author_name: "Eksperimental",
       author_email: "eksperimental@tutamail.com"
     }

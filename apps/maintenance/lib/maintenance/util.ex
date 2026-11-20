@@ -43,21 +43,6 @@ defmodule Maintenance.Util do
   end
 
   @doc """
-  Returns a unique branch name
-  """
-  @spec unique_branch_name(String.t()) :: String.t()
-  def unique_branch_name(base_name) when is_binary(base_name) do
-    unix_time =
-      "Etc/UTC"
-      |> DateTime.now!()
-      |> DateTime.to_unix()
-
-    unique_integer = System.unique_integer([:positive, :monotonic])
-
-    base_name <> "_#{unix_time}_#{unique_integer}"
-  end
-
-  @doc """
   Logs `message` with info level.
   """
   @spec info(message) :: message when message: String.t()

@@ -9,8 +9,6 @@ defmodule MaintenanceJob.Unicode do
   import Maintenance, only: [is_project: 1]
 
   alias Maintenance.Git
-  alias Maintenance.Github
-  alias Maintenance.Project
   alias Maintenance.Util
 
   @job :unicode
@@ -46,32 +44,33 @@ defmodule MaintenanceJob.Unicode do
   def implements_project?(_project), do: false
 
   @doc """
-  Updates the Unicode in the given `project` by creating a git commit.
+  Compares the Unicode version of `project` with the latest one published by unicode.org.
   """
   @impl MaintenanceJob
-  @spec update(Maintenance.project()) :: MaintenanceJob.status()
-  def update(project) when is_project(project) do
-    %{
-      needs_update?: needs_update?,
-      current_unicode_version: _current_unicode_version,
-      latest_unicode_version: latest_unicode_version
-    } = calculate_update(project)
+  @spec status(Maintenance.project()) :: {:due | :up_to_date, MaintenanceJob.info()}
+  def status(project) when is_project(project) do
+    {:ok, current} = get_current_unicode_version(project)
+    {:ok, latest} = get_latest_unicode_version()
+    info = %{current: current, latest: latest, branch: branch(latest)}
 
-    with true <- needs_update?,
-         :none <- find_pull_request(project, latest_unicode_version) do
-      {:ok, contents_ucd} = get_latest(:UCD)
-      {:ok, contents_uts39} = get_latest(:UTS39)
-      update(project, latest_unicode_version, %{UCD: contents_ucd, UTS39: contents_uts39})
+    if Version.compare(latest, current) == :gt do
+      {:due, info}
     else
-      false ->
-        {:ok, :no_update_needed}
+      {:up_to_date, info}
+    end
+  end
 
-      {:ok, url} ->
-        Util.info("PR exists: no update needed [#{project}]: " <> url)
-        {:ok, :no_update_needed}
+  @doc """
+  Updates the Unicode files in the checkout of `project` and commits them on a new branch.
+  """
+  @impl MaintenanceJob
+  @spec prepare(Maintenance.project()) :: {:ok, :committed, String.t()} | {:error, term()}
+  def prepare(project) when is_project(project) do
+    {:ok, latest} = get_latest_unicode_version()
 
-      {:error, _reason} = error ->
-        error
+    with {:ok, contents_ucd} <- get_latest(:UCD),
+         {:ok, contents_uts39} <- get_latest(:UTS39) do
+      prepare(project, latest, %{UCD: contents_ucd, UTS39: contents_uts39})
     end
   end
 
@@ -97,22 +96,6 @@ defmodule MaintenanceJob.Unicode do
   #########################
   # Helpers
 
-  @spec calculate_update(Maintenance.project()) :: %{
-          needs_update?: boolean,
-          current_unicode_version: version,
-          latest_unicode_version: version
-        }
-  defp calculate_update(project) when is_project(project) do
-    {:ok, current_unicode_version} = get_current_unicode_version(project)
-    {:ok, latest_unicode_version} = get_latest_unicode_version()
-
-    %{
-      needs_update?: Version.compare(latest_unicode_version, current_unicode_version) == :gt,
-      current_unicode_version: current_unicode_version,
-      latest_unicode_version: latest_unicode_version
-    }
-  end
-
   # ELIXIR: The steps for creating the PR, are described at the top of the String.Unicode module source code:
   # Please check them before running this job.
   # https://github.com/elixir-lang/elixir/blob/main/lib/elixir/unicode/unicode.ex
@@ -134,10 +117,9 @@ defmodule MaintenanceJob.Unicode do
   # 9. Update String.Unicode.version/0 and on String module docs (version and link)
   # 10. make unicode
 
-  @doc false
-  @spec update(Maintenance.project(), version(), %{file_type() => contents()}) ::
-          MaintenanceJob.status()
-  def update(project = :elixir, version, contents) when is_map(contents) do
+  @spec prepare(Maintenance.project(), version(), %{file_type() => contents()}) ::
+          {:ok, :committed, String.t()} | {:error, term()}
+  defp prepare(project = :elixir, version, contents) when is_map(contents) do
     Util.info("Writing files in repo [#{project}]")
 
     git_path = Git.path(project)
@@ -296,7 +278,7 @@ defmodule MaintenanceJob.Unicode do
   #    erl> ts:run(stdlib, unicode_SUITE, [batch]).
   #    $ cd $ERL_TOP
   #
-  def update(project = :otp, version, contents) do
+  defp prepare(project = :otp, version, contents) do
     Util.info("Writings files in repo [#{project}, #{version}]")
 
     git_path = Git.path(project)
@@ -391,26 +373,19 @@ defmodule MaintenanceJob.Unicode do
     "#{version.major},#{version.minor},#{version.patch}"
   end
 
-  @impl MaintenanceJob
-  @spec run_tasks(Maintenance.project(), [(-> :ok | {:error, term()})], version()) ::
-          MaintenanceJob.status()
-  def run_tasks(project, tasks, version)
-      when is_list(tasks) do
+  # Writes the files and commits them on a new branch, then returns to the branch the
+  # checkout was on. If anything fails nothing stays behind: no changes and no branch.
+  defp run_tasks(project, tasks, version) do
     new_branch = branch(version)
     {:ok, _new_branch, previous_branch} = Git.setup_repo(project, new_branch)
 
-    failure =
-      tasks
-      |> Task.async_stream(& &1.(), timeout: :infinity)
-      |> Enum.find(&(&1 != {:ok, :ok}))
+    with :ok <- run_in_parallel(tasks),
+         :ok <- Git.commit(project, commit_msg(version)) do
+      :ok = Git.checkout(project, previous_branch)
 
-    case failure do
-      nil ->
-        commit_and_submit_pr(project, version, previous_branch)
-
-      {:ok, error} ->
-        IO.warn("Unicode update failed, nothing was committed: " <> inspect(error))
-
+      {:ok, :committed, new_branch}
+    else
+      {:error, _reason} = error ->
         :ok = Git.discard_changes(project)
         :ok = Git.checkout(project, previous_branch)
         :ok = Git.delete_branch(project, new_branch)
@@ -419,26 +394,17 @@ defmodule MaintenanceJob.Unicode do
     end
   end
 
-  defp commit_and_submit_pr(project, version, previous_branch) do
-    # Commit
-    :ok = Git.commit(project, commit_msg(version))
+  defp run_in_parallel(tasks) do
+    failure =
+      tasks
+      |> Task.async_stream(& &1.(), timeout: :infinity)
+      |> Enum.find(&(&1 != {:ok, :ok}))
 
-    data = %{title: "Update Unicode to #{version}"}
-
-    result =
-      case Git.submit_pr(project, @job, data) do
-        :ok ->
-          {:ok, :updated}
-
-        {:error, _value} = error ->
-          IO.warn("Could not create PR, failed with: " <> inspect(error))
-
-          error
-      end
-
-    :ok = Git.checkout(project, previous_branch)
-
-    result
+    case failure do
+      nil -> :ok
+      {:ok, {:error, _reason} = error} -> error
+      other -> {:error, other}
+    end
   end
 
   defp commit_msg(unicode_version) when is_version(unicode_version) do
@@ -456,13 +422,6 @@ defmodule MaintenanceJob.Unicode do
 
   defp branch(version) when is_version(version) do
     "unicode_#{version}"
-  end
-
-  defp find_pull_request(project, version) when is_project(project) and is_version(version) do
-    config = Project.config!(project)
-    owner = Project.get_owner(config, Git.pull_request_remote())
-
-    Github.find_pull_request(owner, config.repo, branch(version))
   end
 
   #############################
