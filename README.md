@@ -30,6 +30,18 @@ iex> Maintenance.Runner.update(:otp, :unicode)
 {:ok, :no_update_needed}
 ```
 
+### Publishing
+
+By default jobs do not push branches or open pull requests. They update the
+local checkout under `~/maintenance_data/cache` and commit to a new branch
+there, and the log shows the pull request that would have been opened.
+
+Set `MAINTENANCE_PUBLISH=true` to push branches and open pull requests.
+
+```sh
+MAINTENANCE_PUBLISH=true iex -S mix
+```
+
 ## Contact
 
 Eksperimental <eksperimental (at) autistici (dot) org>

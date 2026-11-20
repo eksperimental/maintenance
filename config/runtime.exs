@@ -46,4 +46,5 @@ github_access_token =
 
 config :maintenance,
   prod_release?: prod_release?,
-  github_access_token: github_access_token
+  github_access_token: github_access_token,
+  publish?: System.get_env("MAINTENANCE_PUBLISH") in ["1", "true"]

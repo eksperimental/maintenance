@@ -104,4 +104,16 @@ defmodule Maintenance do
   def env!() do
     Application.fetch_env!(@app_name, :env)
   end
+
+  @doc """
+  Returns whether jobs publish their work.
+
+  Jobs always do their local work, including the commit. They push branches
+  and open pull requests only when publishing is enabled, by setting the
+  `MAINTENANCE_PUBLISH` environment variable to `1` or `true`.
+  """
+  @spec publish?() :: boolean()
+  def publish?() do
+    Application.get_env(@app_name, :publish?, false)
+  end
 end

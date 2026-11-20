@@ -5,6 +5,8 @@ defmodule Maintenance.Git do
 
   import Maintenance, only: [cache_path: 0, is_project: 1, is_job: 1]
 
+  require Logger
+
   alias Maintenance.DB
   alias Maintenance.Github
   alias Maintenance.Project
@@ -335,9 +337,6 @@ defmodule Maintenance.Git do
       end
 
     owner = Project.get_owner(config, remote)
-
-    push(project, Project.get_git_url(config, remote))
-
     {:ok, branch} = get_branch(project)
 
     body = %{
@@ -354,7 +353,21 @@ defmodule Maintenance.Git do
       "base" => Map.get(data, :base, config.main_branch)
     }
 
-    with {:ok, pull_request} <- Github.create_pull_request(owner, config.repo, body) do
+    if Maintenance.publish?() do
+      push(project, Project.get_git_url(config, remote))
+      open_pull_request(project, owner, config.repo, body, db_key, db_value)
+    else
+      Logger.info(
+        "Publishing disabled. Skipped pushing #{branch} to #{remote} and opening a pull request " <>
+          "on #{owner}/#{config.repo}: #{inspect(body, pretty: true)}"
+      )
+
+      :ok
+    end
+  end
+
+  defp open_pull_request(project, owner, repo, body, db_key, db_value) do
+    with {:ok, pull_request} <- Github.create_pull_request(owner, repo, body) do
       {:ok, created_at, _offset} =
         pull_request
         |> Map.fetch!("created_at")

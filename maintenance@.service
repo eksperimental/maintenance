@@ -9,7 +9,7 @@ Restart=always
 RestartSec=1
 User=noname
 
-Environment="MAINTENANCE_FULL_PRODUCTION=true"
+Environment="MAINTENANCE_PUBLISH=true"
 EnvironmentFile=/home/noname/env_vars
 
 ExecStart=/bin/bash -c '/home/noname/releases/${RELEASE}/bin/maintenance start'
