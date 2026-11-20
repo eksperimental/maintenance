@@ -38,7 +38,7 @@ defmodule Maintenance.MixProject do
     [
       {:phoenix_pubsub, "~> 2.0"},
       {:swoosh, "~> 1.3"},
-      {:req, "~> 0.5.0"},
+      {:req, "~> 0.7"},
       {:tentacat, "~> 2.0"},
       {:cubdb, "~> 1.1.0"},
       {:quantum, "~> 3.0"},
