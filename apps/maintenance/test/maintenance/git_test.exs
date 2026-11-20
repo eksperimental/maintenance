@@ -1,37 +1,37 @@
 defmodule Maintenance.GitTest do
   use ExUnit.Case, async: false
 
-  alias Maintenance.Git
+  alias Maintenance.{Git, Project}
 
   @moduletag :tmp_dir
 
   @project :elixir
-  @remote_url "https://github.com/owner/elixir"
+  @remote_url Project.get_git_url(@project, :dev)
+
+  setup %{tmp_dir: tmp_dir} do
+    local = Git.path(@project)
+    File.rm_rf!(local)
+    File.mkdir_p!(local)
+    on_exit(fn -> File.rm_rf!(local) end)
+
+    git!(local, ~w(init --quiet --initial-branch main))
+    stale = commit!(local, "stale")
+    main = commit!(local, "main")
+    git!(local, ~w(checkout --quiet -b feature))
+    feature = commit!(local, "feature")
+
+    fork = Path.join(tmp_dir, "fork.git")
+    git!(tmp_dir, ["init", "--quiet", "--bare", fork])
+
+    # Send the fork's URL to the bare repository, and every other URL nowhere.
+    auth_url = Maintenance.auth_url(@remote_url)
+    git!(local, ["config", "url.file://#{fork}.insteadOf", auth_url])
+    git!(local, ["config", "url.file:///nonexistent/.insteadOf", "https://"])
+
+    %{local: local, fork: fork, stale: stale, main: main, feature: feature}
+  end
 
   describe "push/2" do
-    setup %{tmp_dir: tmp_dir} do
-      local = Git.path(@project)
-      File.rm_rf!(local)
-      File.mkdir_p!(local)
-      on_exit(fn -> File.rm_rf!(local) end)
-
-      git!(local, ~w(init --quiet --initial-branch main))
-      stale = commit!(local, "stale")
-      main = commit!(local, "main")
-      git!(local, ~w(checkout --quiet -b feature))
-      feature = commit!(local, "feature")
-
-      fork = Path.join(tmp_dir, "fork.git")
-      git!(tmp_dir, ["init", "--quiet", "--bare", fork])
-
-      # Send the fork's URL to the bare repository, and every other URL nowhere.
-      auth_url = Maintenance.auth_url(@remote_url)
-      git!(local, ["config", "url.file://#{fork}.insteadOf", auth_url])
-      git!(local, ["config", "url.file:///nonexistent/.insteadOf", "https://"])
-
-      %{local: local, fork: fork, stale: stale, main: main, feature: feature}
-    end
-
     test "fast-forwards the fork's main branch along with the current branch", context do
       git!(context.local, ["push", "--quiet", context.fork, "#{context.stale}:refs/heads/main"])
 
@@ -56,6 +56,29 @@ defmodule Maintenance.GitTest do
       assert {:error, _reason} = Git.push(@project, @remote_url)
 
       assert refs(context.fork) == %{"main" => diverged}
+    end
+  end
+
+  describe "submit_pr/3 with publishing disabled" do
+    setup do
+      previous = Application.get_env(:maintenance, :publish?)
+      Application.put_env(:maintenance, :publish?, false)
+
+      on_exit(fn ->
+        Application.put_env(:maintenance, :publish?, previous)
+      end)
+    end
+
+    test "pushes nothing and opens no pull request", context do
+      Req.Test.stub(Maintenance.Github, fn _conn ->
+        flunk("a pull request was requested")
+      end)
+
+      data = %{title: "Update Unicode", db_key: :unicode, db_value: "18.0.0"}
+
+      assert Git.submit_pr(@project, :unicode, data) == :ok
+
+      assert refs(context.fork) == %{}
     end
   end
 
