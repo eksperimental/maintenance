@@ -34,7 +34,6 @@ defmodule Maintenance.Umbrella.MixProject do
       # {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
-      {:gradient, github: "esl/gradient", only: [:dev], runtime: false},
       {:recode, "~> 0.7", only: :dev}
     ]
   end
@@ -50,7 +49,6 @@ defmodule Maintenance.Umbrella.MixProject do
         "deps.unlock --check-unused",
         "compile --warnings-as-errors",
         "credo",
-        # "gradient",
         "dialyzer",
         "docs",
 
