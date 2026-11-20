@@ -165,12 +165,16 @@ defmodule Maintenance.Git do
 
   defp update_repo(project, remote) do
     git_path = path(project)
+    main_branch = Project.config!(project, :main_branch)
 
     with :ok <- config(project),
          # {_response_string, 0} <- System.cmd("git", ~w(pull #{remote} HEAD -f), cd: git_path),
          {_response_string, 0} <- System.cmd("git", ~w(reset --hard HEAD), cd: git_path),
          {_response_string, 0} <- System.cmd("git", ~w(clean -f -d), cd: git_path),
-         {_response_string, 0} <- System.cmd("git", ~w(fetch #{remote} HEAD -f), cd: git_path) do
+         {_response_string, 0} <-
+           System.cmd("git", ~w(fetch #{remote} #{main_branch} -f), cd: git_path),
+         {_response_string, 0} <- System.cmd("git", ~w(checkout -f #{main_branch}), cd: git_path),
+         {_response_string, 0} <- System.cmd("git", ~w(reset --hard FETCH_HEAD), cd: git_path) do
       :ok
     else
       error ->
