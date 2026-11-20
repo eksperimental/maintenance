@@ -15,21 +15,34 @@ defmodule Maintenance.Github do
   @req_options [receive_timeout: 60_000 * 5] ++
                  Application.compile_env(:maintenance, :github_req_options, [])
 
-  @spec fetch(String.t()) :: {:ok, list()} | {:error, Exception.t()}
-  def fetch(url = "https://api.github.com/" <> _rest) do
-    request_headers = [
-      {"Accept", "application/vnd.github.v3+json"},
-      {"Authorization", "token " <> Maintenance.github_access_token!()}
-    ]
+  @doc """
+  Finds the pull request, in any state, whose head is `branch` on `owner/repo`.
 
-    result = Req.get(url, [headers: request_headers] ++ @req_options)
+  The pull requests are opened inside a fork, so the head's owner is the repository's owner.
+  The token is sent only when `GITHUB_ACCESS_TOKEN` is set. Reading pull requests works without it.
+  """
+  @spec find_pull_request(String.t(), String.t(), String.t()) ::
+          {:ok, String.t()} | :none | {:error, term()}
+  def find_pull_request(owner, repo, branch) do
+    url = "https://api.github.com/repos/#{owner}/#{repo}/pulls"
 
-    case result do
-      {:ok, %{status: 200} = response} ->
-        fetch_link(response)
+    headers =
+      case System.get_env("GITHUB_ACCESS_TOKEN") do
+        token when token in [nil, ""] -> []
+        token -> [{"Authorization", "token " <> token}]
+      end
 
-      {:error, exception} ->
-        {:error, exception}
+    options =
+      [
+        params: [head: owner <> ":" <> branch, state: "all"],
+        headers: [{"Accept", "application/vnd.github+json"} | headers]
+      ] ++ @req_options
+
+    case Req.get(url, options) do
+      {:ok, %{status: 200, body: [%{"html_url" => html_url} | _other]}} -> {:ok, html_url}
+      {:ok, %{status: 200, body: []}} -> :none
+      {:ok, %{status: status, body: body}} -> {:error, {status, body}}
+      {:error, exception} -> {:error, exception}
     end
   end
 
@@ -51,33 +64,6 @@ defmodule Maintenance.Github do
         {:error, response_body}
 
       {:error, exception} ->
-        {:error, exception}
-    end
-  end
-
-  defp fetch_link(response = %{headers: headers}) do
-    case Map.fetch(headers, "link") do
-      {:ok, link} ->
-        # <https://api.github.com/repositories/374927/releases?per_page=100&page=2>; rel="next", <https://api.github.com/repositories/374927/releases?per_page=100&page=2>; rel="last"
-        case Regex.run(~r/<([^>]+)>; rel="next"/, link, capture: :all_but_first) do
-          nil ->
-            body = Map.fetch!(response, :body)
-
-            {:ok, body}
-
-          [next_url] ->
-            {:ok, next_json} = fetch(next_url)
-            body = Map.fetch!(response, :body)
-
-            {:ok, List.wrap(body) ++ next_json}
-        end
-
-      :error ->
-        exception =
-          ArgumentError.exception(
-            "link not found in headers, got: #{inspect(headers, limit: :infinity)}"
-          )
-
         {:error, exception}
     end
   end

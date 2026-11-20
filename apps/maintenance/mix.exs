@@ -37,7 +37,6 @@ defmodule Maintenance.MixProject do
   defp deps do
     [
       {:req, "~> 0.7"},
-      {:cubdb, "~> 1.1.0"},
       {:plug, "~> 1.0", only: :test}
     ]
   end

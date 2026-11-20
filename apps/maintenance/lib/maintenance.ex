@@ -35,14 +35,6 @@ defmodule Maintenance do
   end
 
   @doc false
-  @spec db_path(Maintenance.Project.t()) :: String.t()
-  def db_path(project) when is_project(project) do
-    data_dir()
-    |> Path.join("database")
-    |> Path.join(Atom.to_string(project))
-  end
-
-  @doc false
   @spec author_email() :: String.t()
   def author_email(), do: Application.fetch_env!(@app_name, :author_email)
 

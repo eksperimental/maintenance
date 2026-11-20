@@ -3,8 +3,6 @@ defmodule Maintenance.Project do
   Module that contains the specific code for updating each project.
   """
 
-  alias Maintenance.DB
-
   # Add new projects here
   @type t :: :elixir | :otp
 
@@ -42,18 +40,6 @@ defmodule Maintenance.Project do
     project
     |> config!()
     |> Map.fetch!(key)
-  end
-
-  @spec list_entries_by_job(Maintenance.project(), Maintenance.job()) :: any()
-  def list_entries_by_job(project, job) when is_project(project) and is_atom(job) do
-    # {:ok, result} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [reduce: fn ])
-    {:ok, results} = DB.select(project, reverse: true)
-
-    Enum.filter(results, fn
-      {{^job, _other}, _value} -> true
-      {^job, _value} -> true
-      _other -> false
-    end)
   end
 
   @spec list() :: [Maintenance.project()]

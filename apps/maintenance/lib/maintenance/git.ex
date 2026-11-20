@@ -7,7 +7,6 @@ defmodule Maintenance.Git do
 
   require Logger
 
-  alias Maintenance.DB
   alias Maintenance.Github
   alias Maintenance.Project
   alias Maintenance.Util
@@ -351,17 +350,21 @@ defmodule Maintenance.Git do
     end
   end
 
+  @doc false
+  @spec pull_request_remote() :: :upstream | :dev
+  def pull_request_remote() do
+    if Maintenance.env!() == :prod do
+      :upstream
+    else
+      :dev
+    end
+  end
+
   @spec submit_pr(Maintenance.project(), Maintenance.job(), map) :: :ok | {:error, term()}
-  def submit_pr(project, job, data = %{title: title, db_key: db_key, db_value: db_value})
+  def submit_pr(project, job, data = %{title: title})
       when is_project(project) and is_atom(job) and is_map(data) do
     config = Project.config!(project)
-
-    remote =
-      if Maintenance.env!() == :prod do
-        :upstream
-      else
-        :dev
-      end
+    remote = pull_request_remote()
 
     owner = Project.get_owner(config, remote)
     {:ok, branch} = get_branch(project)
@@ -381,31 +384,15 @@ defmodule Maintenance.Git do
     }
 
     if Maintenance.publish?() do
-      with :ok <- push(project, Project.get_git_url(config, remote)) do
-        open_pull_request(project, owner, config.repo, body, db_key, db_value)
+      with :ok <- push(project, Project.get_git_url(config, remote)),
+           {:ok, _pull_request} <- Github.create_pull_request(owner, config.repo, body) do
+        :ok
       end
     else
       Logger.info(
         "Publishing disabled. Skipped pushing #{branch} to #{remote} and opening a pull request " <>
           "on #{owner}/#{config.repo}: #{inspect(body, pretty: true)}"
       )
-
-      :ok
-    end
-  end
-
-  defp open_pull_request(project, owner, repo, body, db_key, db_value) do
-    with {:ok, pull_request} <- Github.create_pull_request(owner, repo, body) do
-      {:ok, created_at, _offset} =
-        pull_request
-        |> Map.fetch!("created_at")
-        |> DateTime.from_iso8601()
-
-      DB.put(project, db_key, %{
-        value: db_value,
-        url: Map.fetch!(pull_request, "html_url"),
-        created_at: created_at
-      })
 
       :ok
     end

@@ -74,7 +74,7 @@ defmodule Maintenance.GitTest do
         flunk("a pull request was requested")
       end)
 
-      data = %{title: "Update Unicode", db_key: :unicode, db_value: "18.0.0"}
+      data = %{title: "Update Unicode"}
 
       assert Git.submit_pr(@project, :unicode, data) == :ok
 

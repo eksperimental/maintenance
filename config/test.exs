@@ -7,4 +7,4 @@ config :logger, level: :warning
 config :maintenance, data_dir: Path.expand("../_build/test/maintenance_data", __DIR__)
 
 # Route GitHub API requests to Req.Test stubs.
-config :maintenance, :github_req_options, plug: {Req.Test, Maintenance.Github}
+config :maintenance, :github_req_options, plug: {Req.Test, Maintenance.Github}, retry: false

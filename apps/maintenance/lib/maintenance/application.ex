@@ -21,7 +21,6 @@ defmodule Maintenance.Application do
     children = [
       # Start a worker by calling: Maintenance.Worker.start_link(arg)
       # {Maintenance.Worker, arg}
-      Maintenance.DB,
       {Task.Supervisor, name: Maintenance.TaskSupervisor}
     ]
 

@@ -8,8 +8,9 @@ defmodule MaintenanceJob.Unicode do
 
   import Maintenance, only: [is_project: 1]
 
-  alias Maintenance.DB
   alias Maintenance.Git
+  alias Maintenance.Github
+  alias Maintenance.Project
   alias Maintenance.Util
 
   @job :unicode
@@ -56,12 +57,21 @@ defmodule MaintenanceJob.Unicode do
       latest_unicode_version: latest_unicode_version
     } = calculate_update(project)
 
-    if needs_update? do
+    with true <- needs_update?,
+         :none <- find_pull_request(project, latest_unicode_version) do
       {:ok, contents_ucd} = get_latest(:UCD)
       {:ok, contents_uts39} = get_latest(:UTS39)
       update(project, latest_unicode_version, %{UCD: contents_ucd, UTS39: contents_uts39})
     else
-      {:ok, :no_update_needed}
+      false ->
+        {:ok, :no_update_needed}
+
+      {:ok, url} ->
+        Util.info("PR exists: no update needed [#{project}]: " <> url)
+        {:ok, :no_update_needed}
+
+      {:error, _reason} = error ->
+        error
     end
   end
 
@@ -128,108 +138,103 @@ defmodule MaintenanceJob.Unicode do
   @spec update(Maintenance.project(), version(), %{file_type() => contents()}) ::
           MaintenanceJob.status()
   def update(project = :elixir, version, contents) when is_map(contents) do
-    if pr_exists?(project, @job, version) do
-      Util.info("PR exists: no update needed [#{project}]")
-      {:ok, :no_update_needed}
-    else
-      Util.info("Writing files in repo [#{project}]")
+    Util.info("Writing files in repo [#{project}]")
 
-      git_path = Git.path(project)
-      unicode_dir = Path.join([git_path, "lib", "elixir", "unicode"])
-      elixir_dir = Path.join([git_path, "lib", "elixir"])
+    git_path = Git.path(project)
+    unicode_dir = Path.join([git_path, "lib", "elixir", "unicode"])
+    elixir_dir = Path.join([git_path, "lib", "elixir"])
 
-      # UCD
-      # Replace UnicodeData.txt by copying original
-      # Replace PropertyValueAliases.txt by copying original
-      # Replace PropList.txt by copying original
-      # Replace ScriptExtensions.txt by copying original
-      # Replace Scripts.txt by copying original
-      # Replace SpecialCasing.txt by copying original
+    # UCD
+    # Replace UnicodeData.txt by copying original
+    # Replace PropertyValueAliases.txt by copying original
+    # Replace PropList.txt by copying original
+    # Replace ScriptExtensions.txt by copying original
+    # Replace Scripts.txt by copying original
+    # Replace SpecialCasing.txt by copying original
 
-      # UTS39
-      # Replace confusables.txt by copying original
-      #  (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
-      # Replace IdentifierType.txt by copying original
-      #  (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
+    # UTS39
+    # Replace confusables.txt by copying original
+    #  (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
+    # Replace IdentifierType.txt by copying original
+    #  (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
 
-      fn_tasks =
-        for {dir, file_type, file_name} <- [
-              # UCD
-              {unicode_dir, :UCD, "UnicodeData.txt"},
-              {unicode_dir, :UCD, "PropertyValueAliases.txt"},
-              {unicode_dir, :UCD, "PropList.txt"},
-              {unicode_dir, :UCD, "ScriptExtensions.txt"},
-              {unicode_dir, :UCD, "Scripts.txt"},
-              {unicode_dir, :UCD, "SpecialCasing.txt"},
+    fn_tasks =
+      for {dir, file_type, file_name} <- [
+            # UCD
+            {unicode_dir, :UCD, "UnicodeData.txt"},
+            {unicode_dir, :UCD, "PropertyValueAliases.txt"},
+            {unicode_dir, :UCD, "PropList.txt"},
+            {unicode_dir, :UCD, "ScriptExtensions.txt"},
+            {unicode_dir, :UCD, "Scripts.txt"},
+            {unicode_dir, :UCD, "SpecialCasing.txt"},
 
-              # UTS39
-              {unicode_dir, :UTS39, "confusables.txt"},
-              {unicode_dir, :UTS39, "IdentifierType.txt"}
-            ] do
-          fn ->
-            path = Path.join(dir, Path.basename(file_name))
+            # UTS39
+            {unicode_dir, :UTS39, "confusables.txt"},
+            {unicode_dir, :UTS39, "IdentifierType.txt"}
+          ] do
+        fn ->
+          path = Path.join(dir, Path.basename(file_name))
 
-            File.write!(path, Map.get(contents[file_type], file_name))
-          end
+          File.write!(path, Map.get(contents[file_type], file_name))
         end
-
-      # Update String.Unicode.version/0
-      fn_task_special_casing = fn ->
-        string_unicode_module_path = Path.join([elixir_dir, "unicode", "unicode.ex"])
-        regex_string_unicode_module = ~r/(def\s+version,\s+do:\s+)({\d+\s*,\s+\d+\s*,\s+\d+})/
-
-        string_unicode_module =
-          string_unicode_module_path
-          |> File.read!()
-          |> String.replace(
-            regex_string_unicode_module,
-            "\\1{#{version.major}, #{version.minor}, #{version.patch}}"
-          )
-
-        File.write(string_unicode_module_path, string_unicode_module)
       end
 
-      # Update Unicode version in lib/elixir/pages/references/unicode-syntax.md
-      fn_task_unicode_syntax = fn ->
-        unicode_syntax_path = Path.join([elixir_dir, "pages/references/unicode-syntax.md"])
+    # Update String.Unicode.version/0
+    fn_task_special_casing = fn ->
+      string_unicode_module_path = Path.join([elixir_dir, "unicode", "unicode.ex"])
+      regex_string_unicode_module = ~r/(def\s+version,\s+do:\s+)({\d+\s*,\s+\d+\s*,\s+\d+})/
 
-        regex_unicode_syntax = ~r{
+      string_unicode_module =
+        string_unicode_module_path
+        |> File.read!()
+        |> String.replace(
+          regex_string_unicode_module,
+          "\\1{#{version.major}, #{version.minor}, #{version.patch}}"
+        )
+
+      File.write(string_unicode_module_path, string_unicode_module)
+    end
+
+    # Update Unicode version in lib/elixir/pages/references/unicode-syntax.md
+    fn_task_unicode_syntax = fn ->
+      unicode_syntax_path = Path.join([elixir_dir, "pages/references/unicode-syntax.md"])
+
+      regex_unicode_syntax = ~r{
           (\[Unicode\s+Standard\s+Annex[^\]]+]
           \(https://[^\]]*\),\s+version\s+)
           \d+\.\d+(?:\.\d+)?  # Captures version like 17.0 or 17.0.1
         }x
 
-        unicode_syntax_content =
-          unicode_syntax_path
-          |> File.read!()
-          |> String.replace(regex_unicode_syntax, "\\g{1}#{version.major}.#{version.minor}")
+      unicode_syntax_content =
+        unicode_syntax_path
+        |> File.read!()
+        |> String.replace(regex_unicode_syntax, "\\g{1}#{version.major}.#{version.minor}")
 
-        File.write(unicode_syntax_path, unicode_syntax_content)
-      end
-
-      # Update String.Unicode.version/0 and on String module docs (version and link)
-      fn_task_string_module = fn ->
-        string_module_path = Path.join([elixir_dir, "lib", "string.ex"])
-
-        regex_string_module =
-          ~r{(\[The Unicode Standard,\s+Version\s+)(\d+\.\d+\.\d+)(\]\([^\)]+/Unicode)(\d+\.\d+\.\d+)(/\)\.)}
-
-        string_module =
-          string_module_path
-          |> File.read!()
-          |> String.replace(regex_string_module, "\\g{1}#{version}\\g{3}#{version}\\g{5}")
-
-        File.write(string_module_path, string_module)
-      end
-
-      all_fn_tasks = [
-        fn_task_special_casing,
-        fn_task_unicode_syntax,
-        fn_task_string_module | fn_tasks
-      ]
-
-      run_tasks(project, all_fn_tasks, version)
+      File.write(unicode_syntax_path, unicode_syntax_content)
     end
+
+    # Update String.Unicode.version/0 and on String module docs (version and link)
+    fn_task_string_module = fn ->
+      string_module_path = Path.join([elixir_dir, "lib", "string.ex"])
+
+      regex_string_module =
+        ~r{(\[The Unicode Standard,\s+Version\s+)(\d+\.\d+\.\d+)(\]\([^\)]+/Unicode)(\d+\.\d+\.\d+)(/\)\.)}
+
+      string_module =
+        string_module_path
+        |> File.read!()
+        |> String.replace(regex_string_module, "\\g{1}#{version}\\g{3}#{version}\\g{5}")
+
+      File.write(string_module_path, string_module)
+    end
+
+    all_fn_tasks = [
+      fn_task_special_casing,
+      fn_task_unicode_syntax,
+      fn_task_string_module | fn_tasks
+    ]
+
+    run_tasks(project, all_fn_tasks, version)
   end
 
   # OTP: There is no specific documentation on how to update to a new Unicode version,
@@ -292,81 +297,76 @@ defmodule MaintenanceJob.Unicode do
   #    $ cd $ERL_TOP
   #
   def update(project = :otp, version, contents) do
-    if pr_exists?(project, @job, version) do
-      Util.info("PR exists: no update needed [#{project}, #{version}]")
-      {:ok, :no_update_needed}
-    else
-      Util.info("Writings files in repo [#{project}, #{version}]")
+    Util.info("Writings files in repo [#{project}, #{version}]")
 
-      git_path = Git.path(project)
-      unicode_spec_dir = Path.join([git_path, "lib", "stdlib", "uc_spec"])
+    git_path = Git.path(project)
+    unicode_spec_dir = Path.join([git_path, "lib", "stdlib", "uc_spec"])
 
-      unicode_test_dir = Path.join([git_path, "lib", "stdlib", "test", "unicode_util_SUITE_data"])
+    unicode_test_dir = Path.join([git_path, "lib", "stdlib", "test", "unicode_util_SUITE_data"])
 
-      fn_tasks =
-        for {dir, file_type, file_path} <- [
-              # lib/stdlib/uc_spec/
-              {unicode_spec_dir, :UCD, "CaseFolding.txt"},
-              {unicode_spec_dir, :UCD, "CompositionExclusions.txt"},
-              {unicode_spec_dir, :UCD, "DerivedCoreProperties.txt"},
-              {unicode_spec_dir, :UCD, "EastAsianWidth.txt"},
-              {unicode_spec_dir, :UCD, "IndicSyllabicCategory.txt"},
-              {unicode_spec_dir, :UCD, "PropList.txt"},
-              {unicode_spec_dir, :UCD, "SpecialCasing.txt"},
-              {unicode_spec_dir, :UCD, "UnicodeData.txt"},
-              {unicode_spec_dir, :UCD, "auxiliary/GraphemeBreakProperty.txt"},
-              {unicode_spec_dir, :UCD, "emoji/emoji-data.txt"},
+    fn_tasks =
+      for {dir, file_type, file_path} <- [
+            # lib/stdlib/uc_spec/
+            {unicode_spec_dir, :UCD, "CaseFolding.txt"},
+            {unicode_spec_dir, :UCD, "CompositionExclusions.txt"},
+            {unicode_spec_dir, :UCD, "DerivedCoreProperties.txt"},
+            {unicode_spec_dir, :UCD, "EastAsianWidth.txt"},
+            {unicode_spec_dir, :UCD, "IndicSyllabicCategory.txt"},
+            {unicode_spec_dir, :UCD, "PropList.txt"},
+            {unicode_spec_dir, :UCD, "SpecialCasing.txt"},
+            {unicode_spec_dir, :UCD, "UnicodeData.txt"},
+            {unicode_spec_dir, :UCD, "auxiliary/GraphemeBreakProperty.txt"},
+            {unicode_spec_dir, :UCD, "emoji/emoji-data.txt"},
 
-              # lib/stdlib/test/unicode_util_SUITE_data/
-              {unicode_test_dir, :UCD, "NormalizationTest.txt"},
-              {unicode_test_dir, :UCD, "auxiliary/GraphemeBreakTest.txt"},
-              {unicode_test_dir, :UCD, "auxiliary/LineBreakTest.txt"}
-            ] do
-          fn ->
-            dir
-            |> Path.join(Path.basename(file_path))
-            |> File.write!(Map.get(contents[file_type], file_path))
-          end
+            # lib/stdlib/test/unicode_util_SUITE_data/
+            {unicode_test_dir, :UCD, "NormalizationTest.txt"},
+            {unicode_test_dir, :UCD, "auxiliary/GraphemeBreakTest.txt"},
+            {unicode_test_dir, :UCD, "auxiliary/LineBreakTest.txt"}
+          ] do
+        fn ->
+          dir
+          |> Path.join(Path.basename(file_path))
+          |> File.write!(Map.get(contents[file_type], file_path))
         end
-
-      # lib/stdlib/uc_spec/README-UPDATE.txt
-      fn_task_readme_update = fn ->
-        readme_update_path = Path.join([unicode_spec_dir, "README-UPDATE.txt"])
-        regex_version = ~r{(\d+\.\d+\.\d+)}
-
-        string_readme_update =
-          readme_update_path
-          |> File.read!()
-          |> String.replace(regex_version, to_string(version))
-
-        File.write(readme_update_path, string_readme_update)
       end
 
-      # lib/stdlib/uc_spec/gen_unicode_mod.escript
-      fn_task_gen_unicode = fn ->
-        gen_unicode_path = Path.join([unicode_spec_dir, "gen_unicode_mod.escript"])
-        gen_unicode_version = build_unicode_version(version)
+    # lib/stdlib/uc_spec/README-UPDATE.txt
+    fn_task_readme_update = fn ->
+      readme_update_path = Path.join([unicode_spec_dir, "README-UPDATE.txt"])
+      regex_version = ~r{(\d+\.\d+\.\d+)}
 
-        string_gen_unicode =
-          gen_unicode_path
-          |> File.read!()
-          |> String.replace(
-            @otp_regex_gen_unicode_version,
-            "\\g{1}" <> gen_unicode_version <> "\\g{7}"
-          )
+      string_readme_update =
+        readme_update_path
+        |> File.read!()
+        |> String.replace(regex_version, to_string(version))
 
-        File.write(gen_unicode_path, string_gen_unicode)
-      end
-
-      # gen_unicode_mod.escript reads the files written above and its own
-      # spec_version(), so it must run only after every other task has finished.
-      fn_task_update_tests = fn ->
-        Enum.each([fn_task_readme_update, fn_task_gen_unicode | fn_tasks], & &1.())
-        update_otp_tests(unicode_spec_dir)
-      end
-
-      run_tasks(project, [fn_task_update_tests], version)
+      File.write(readme_update_path, string_readme_update)
     end
+
+    # lib/stdlib/uc_spec/gen_unicode_mod.escript
+    fn_task_gen_unicode = fn ->
+      gen_unicode_path = Path.join([unicode_spec_dir, "gen_unicode_mod.escript"])
+      gen_unicode_version = build_unicode_version(version)
+
+      string_gen_unicode =
+        gen_unicode_path
+        |> File.read!()
+        |> String.replace(
+          @otp_regex_gen_unicode_version,
+          "\\g{1}" <> gen_unicode_version <> "\\g{7}"
+        )
+
+      File.write(gen_unicode_path, string_gen_unicode)
+    end
+
+    # gen_unicode_mod.escript reads the files written above and its own
+    # spec_version(), so it must run only after every other task has finished.
+    fn_task_update_tests = fn ->
+      Enum.each([fn_task_readme_update, fn_task_gen_unicode | fn_tasks], & &1.())
+      update_otp_tests(unicode_spec_dir)
+    end
+
+    run_tasks(project, [fn_task_update_tests], version)
   end
 
   defp update_otp_tests(unicode_spec_dir) do
@@ -423,11 +423,7 @@ defmodule MaintenanceJob.Unicode do
     # Commit
     :ok = Git.commit(project, commit_msg(version))
 
-    data = %{
-      title: "Update Unicode to #{version}",
-      db_key: {@job, MaintenanceJob.Unicode.to_tuple(version)},
-      db_value: version
-    }
+    data = %{title: "Update Unicode to #{version}"}
 
     result =
       case Git.submit_pr(project, @job, data) do
@@ -462,14 +458,11 @@ defmodule MaintenanceJob.Unicode do
     "unicode_#{version}"
   end
 
-  defp pr_exists?(project, job, version)
-       when is_project(project) and is_atom(job) and is_version(version) do
-    not (!get_unicode_db_entry(project, job, version))
-  end
+  defp find_pull_request(project, version) when is_project(project) and is_version(version) do
+    config = Project.config!(project)
+    owner = Project.get_owner(config, Git.pull_request_remote())
 
-  defp get_unicode_db_entry(project, job, version)
-       when is_project(project) and is_atom(job) and is_version(version) do
-    DB.get(project, {job, to_tuple(version)})
+    Github.find_pull_request(owner, config.repo, branch(version))
   end
 
   #############################
