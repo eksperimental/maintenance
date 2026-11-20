@@ -12,7 +12,8 @@ defmodule Maintenance.Github do
   Module interacts with GitHub API.
   """
 
-  @req_options [receive_timeout: 60_000 * 5]
+  @req_options [receive_timeout: 60_000 * 5] ++
+                 Application.compile_env(:maintenance, :github_req_options, [])
 
   @spec fetch(String.t()) :: {:ok, list()} | {:error, Exception.t()}
   def fetch(url = "https://api.github.com/" <> _rest) do

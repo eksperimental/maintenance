@@ -40,6 +40,7 @@ defmodule Maintenance.MixProject do
       {:req, "~> 0.7"},
       {:cubdb, "~> 1.1.0"},
       {:quantum, "~> 3.0"},
+      {:plug, "~> 1.0", only: :test},
       # {:beam_langs_meta_data,
       #  git: "https://github.com/eksperimental/beam_langs_meta_data/", branch: "main"}
       {:beam_langs_meta_data, path: "../../../beam_langs_meta_data"}
