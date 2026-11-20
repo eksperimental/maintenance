@@ -10,9 +10,9 @@ Feel free to open up an issue <https://github.com/eksperimental/beam_meta/issues
 
 ## Usage
 
-1. Store `SECRET_KEY_BASE` and `GITHUB_ACCESS_TOKEN` in `.env`. You can use `.sample_env` as a base.
+1. Store `GITHUB_ACCESS_TOKEN` in `.env`.
 2. Make sure `.env` is loaded. If you run `source .env` in your terminal.
-3. Run `iex -S mix phx.server`.
+3. Run `iex -S mix`.
 
 The following commands can be run within IEx.
 

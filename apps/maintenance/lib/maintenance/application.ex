@@ -8,8 +8,6 @@ defmodule Maintenance.Application do
   @impl Application
   def start(_type, _args) do
     children = [
-      # Start the PubSub system
-      {Phoenix.PubSub, name: Maintenance.PubSub},
       # Start a worker by calling: Maintenance.Worker.start_link(arg)
       # {Maintenance.Worker, arg}
       Maintenance.DB,

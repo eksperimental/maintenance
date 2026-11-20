@@ -36,7 +36,6 @@ defmodule Maintenance.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix_pubsub, "~> 2.0"},
       {:swoosh, "~> 1.3"},
       {:req, "~> 0.7"},
       {:tentacat, "~> 2.0"},

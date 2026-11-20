@@ -93,8 +93,7 @@ defmodule Maintenance.Umbrella.MixProject do
     [
       maintenance: [
         applications: [
-          maintenance: :permanent,
-          maintenance_web: :permanent
+          maintenance: :permanent
         ]
       ]
     ]
@@ -104,7 +103,6 @@ defmodule Maintenance.Umbrella.MixProject do
     [
       # The main page in the docs
       main: @name,
-      ignore_apps: [:maintenance_web],
       authors: ["Eksperimental"],
       extras: [
         "README.md": [filename: "readme", title: "Readme"],
