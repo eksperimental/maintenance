@@ -479,7 +479,7 @@ defmodule MaintenanceJob.Unicode do
          }} ->
           # "https://www.unicode.org/versions/Unicode15.1.0/"
           Regex.named_captures(
-            ~r{https://www.unicode.org/versions/Unicode(?<version>\d+\.\d+.\d+)/},
+            ~r{https?://www.unicode.org/versions/Unicode(?<version>\d+\.\d+.\d+)/},
             redirect_url
           )
 
