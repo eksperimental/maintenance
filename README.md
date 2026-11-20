@@ -42,6 +42,16 @@ Set `MAINTENANCE_PUBLISH=true` to push branches and open pull requests.
 MAINTENANCE_PUBLISH=true iex -S mix
 ```
 
+Pull requests are opened inside a fork, never in the original project.
+A run with `MIX_ENV=prod` uses the `maintenance-beam` fork. Any other
+environment uses the `maintenance-beam-app` fork. The pull request goes from
+the new branch into the fork's main branch.
+
+Each publish also fast-forwards the fork's main branch to the upstream commit
+the job started from, so the pull request shows only the new commits. If the
+fork's main branch has commits of its own, nothing is pushed and no pull
+request is opened.
+
 ## Contact
 
 Eksperimental <eksperimental (at) autistici (dot) org>
