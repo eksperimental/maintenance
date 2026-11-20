@@ -204,7 +204,7 @@ defmodule MaintenanceJob.Unicode do
         unicode_syntax_content =
           unicode_syntax_path
           |> File.read!()
-          |> String.replace(regex_unicode_syntax, "\\g{1}#{version}")
+          |> String.replace(regex_unicode_syntax, "\\g{1}#{version.major}.#{version.minor}")
 
         File.write(unicode_syntax_path, unicode_syntax_content)
       end
