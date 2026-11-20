@@ -32,6 +32,28 @@ defmodule Maintenance.Github do
     end
   end
 
+  @spec create_pull_request(String.t(), String.t(), map) :: {:ok, map} | {:error, term()}
+  def create_pull_request(owner, repo, body) do
+    url = "https://api.github.com/repos/#{owner}/#{repo}/pulls"
+
+    request_headers = [
+      {"Accept", "application/vnd.github+json"},
+      {"Authorization", "token " <> Maintenance.github_access_token!()}
+    ]
+
+    case Req.post(url, [json: body, headers: request_headers] ++ @req_options) do
+      {:ok, %{status: status, body: pull_request}}
+      when status in 200..299 and is_map(pull_request) ->
+        {:ok, pull_request}
+
+      {:ok, %{body: response_body}} ->
+        {:error, response_body}
+
+      {:error, exception} ->
+        {:error, exception}
+    end
+  end
+
   defp fetch_link(response = %{headers: headers}) do
     case Map.fetch(headers, "link") do
       {:ok, link} ->

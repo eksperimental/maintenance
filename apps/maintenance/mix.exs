@@ -38,7 +38,6 @@ defmodule Maintenance.MixProject do
     [
       {:swoosh, "~> 1.3"},
       {:req, "~> 0.7"},
-      {:tentacat, "~> 2.0"},
       {:cubdb, "~> 1.1.0"},
       {:quantum, "~> 3.0"},
       # {:beam_langs_meta_data,

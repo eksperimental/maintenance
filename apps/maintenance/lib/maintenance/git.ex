@@ -8,6 +8,7 @@ defmodule Maintenance.Git do
   require Logger
 
   alias Maintenance.DB
+  alias Maintenance.Github
   alias Maintenance.Project
   alias Maintenance.Util
 
@@ -339,7 +340,6 @@ defmodule Maintenance.Git do
 
     push(project, Project.get_git_url(config, remote))
 
-    client = Tentacat.Client.new(%{access_token: Maintenance.github_access_token!()})
     {:ok, branch} = get_branch(project)
 
     body = %{
@@ -356,46 +356,20 @@ defmodule Maintenance.Git do
       "base" => Map.get(data, :base, config.main_branch)
     }
 
-    case Tentacat.Pulls.create(client, owner, config.repo, body) do
-      {pr_response_status, pr_github_response, _httpoison_response}
-      when pr_response_status in 200..299 and is_map(pr_github_response) ->
-        {:ok, created_at, _offset} =
-          pr_github_response
-          |> Map.fetch!("created_at")
-          |> DateTime.from_iso8601()
+    with {:ok, pull_request} <- Github.create_pull_request(owner, config.repo, body) do
+      {:ok, created_at, _offset} =
+        pull_request
+        |> Map.fetch!("created_at")
+        |> DateTime.from_iso8601()
 
-        DB.put(project, db_key, %{
-          value: db_value,
-          url: Map.fetch!(pr_github_response, "html_url"),
-          created_at: created_at
-        })
+      DB.put(project, db_key, %{
+        value: db_value,
+        url: Map.fetch!(pull_request, "html_url"),
+        created_at: created_at
+      })
 
-        :ok
-
-      {_pr_response_status, pr_github_response, _httpoison_response} ->
-        {:error, pr_github_response}
+      :ok
     end
-
-    # {response_status, github_response, _httpoison_response} =
-    #   Tentacat.Pulls.create(client, owner, config.repo, body)
-
-    # if response_status in 200..299 do
-    #   {:ok, created_at, _offset} =
-    #     Map.fetch!(github_response, "created_at") |> DateTime.from_iso8601()
-
-    #   {response_status, github_response, _httpoison_response} =
-    #     Tentacat.Issues.Labels.add(client, owner, config.repo, github_response["id"], ["automerge"])
-
-    #   DB.put(project, db_key, %{
-    #     value: db_value,
-    #     url: Map.fetch!(github_response, "html_url"),
-    #     created_at: created_at
-    #   })
-
-    #   :ok
-    # else
-    #   {:error, github_response}
-    # end
   end
 
   @spec get_ref_date_time(Maintenance.project(), String.t()) ::

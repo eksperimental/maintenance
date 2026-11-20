@@ -26,8 +26,6 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-config :tentacat, :extra_headers, [{"Accept", "application/vnd.github.black-cat-preview+json"}]
-
 # CRONTAB SCHEDULER
 job_on_reboot =
   if config_env() == :prod do
