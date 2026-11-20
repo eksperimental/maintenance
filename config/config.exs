@@ -91,7 +91,7 @@ config :maintenance,
   git_repo_url: "https://github.com/eksperimental/maintenance",
   author_github_account: "maintenance-beam-app",
   author_name: "Maintenance App",
-  author_email: "maintenance-beam@autistici.org",
+  author_email: "eksperimental@tutamail.com",
   project_configs: %{
     # beam_langs_meta_data: %{
     #   repo: "beam_langs_meta_data",
@@ -120,7 +120,7 @@ config :maintenance,
         dev: owner_dev
       },
       author_name: "Eksperimental",
-      author_email: "eksperimental@autistici.org"
+      author_email: "eksperimental@tutamail.com"
     }
     # sample_project: %{
     #   repo: "sample_project",
