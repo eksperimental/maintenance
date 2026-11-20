@@ -5,8 +5,6 @@ defmodule Maintenance.Git do
 
   import Maintenance, only: [cache_path: 0, is_project: 1, is_job: 1]
 
-  require Logger
-
   alias Maintenance.DB
   alias Maintenance.Github
   alias Maintenance.Project

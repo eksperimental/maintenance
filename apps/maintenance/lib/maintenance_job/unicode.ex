@@ -8,8 +8,6 @@ defmodule MaintenanceJob.Unicode do
 
   import Maintenance, only: [is_project: 1]
 
-  require Logger
-
   alias Maintenance.DB
   alias Maintenance.Git
   alias Maintenance.Util
@@ -440,19 +438,6 @@ defmodule MaintenanceJob.Unicode do
   defp pr_exists?(project, job, version)
        when is_project(project) and is_atom(job) and is_version(version) do
     not (!get_unicode_db_entry(project, job, version))
-  end
-
-  defp pr_exists?(project, job, version)
-       when is_project(project) and is_atom(job) and is_version(version) do
-    {:ok, result} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [take: 1])
-
-    case result do
-      [{_key, result}] ->
-        not (Version.compare(version, result.version) == :gt)
-
-      [] ->
-        false
-    end
   end
 
   defp get_unicode_db_entry(project, job, version)

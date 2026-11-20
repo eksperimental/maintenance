@@ -4,7 +4,6 @@ defmodule Maintenance do
   """
 
   require Application
-  require Logger
 
   @app_name :maintenance
   @git_repo_url Application.compile_env(@app_name, :git_repo_url)

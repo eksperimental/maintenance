@@ -9,8 +9,6 @@ defmodule MaintenanceJob.SampleJob do
 
   import Maintenance, only: [is_project: 1]
 
-  require Logger
-
   alias Maintenance.DB
   alias Maintenance.Git
   alias Maintenance.Util

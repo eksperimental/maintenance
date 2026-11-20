@@ -5,8 +5,6 @@ defmodule MaintenanceJob do
   Note that a job can be implemented for several projects, that is why we always pass the project as an argument.
   """
 
-  require Logger
-
   @typedoc """
   The job.
   """
