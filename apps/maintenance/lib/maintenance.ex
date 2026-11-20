@@ -51,8 +51,20 @@ defmodule Maintenance do
   end
 
   @doc false
+  @spec github_access_token() :: String.t() | nil
+  def github_access_token() do
+    case System.get_env("GITHUB_ACCESS_TOKEN") do
+      token when token in [nil, ""] -> nil
+      token -> token
+    end
+  end
+
+  @doc false
   @spec github_access_token!() :: String.t()
-  def github_access_token!(), do: Application.fetch_env!(@app_name, :github_access_token)
+  def github_access_token!() do
+    github_access_token() ||
+      raise "GITHUB_ACCESS_TOKEN is not set. Put it in .env and run `source .env`."
+  end
 
   @doc """
   List projects

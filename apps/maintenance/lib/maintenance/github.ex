@@ -27,8 +27,8 @@ defmodule Maintenance.Github do
     url = "https://api.github.com/repos/#{owner}/#{repo}/pulls"
 
     headers =
-      case System.get_env("GITHUB_ACCESS_TOKEN") do
-        token when token in [nil, ""] -> []
+      case Maintenance.github_access_token() do
+        nil -> []
         token -> [{"Authorization", "token " <> token}]
       end
 
