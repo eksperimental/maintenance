@@ -10,42 +10,59 @@ Feel free to open up an issue <https://github.com/eksperimental/beam_meta/issues
 
 ## Usage
 
-1. Store `GITHUB_ACCESS_TOKEN` in `.env`.
-2. Make sure `.env` is loaded. If you run `source .env` in your terminal.
-3. Run `iex -S mix`.
-
-The following commands can be run within IEx.
-
-```elixir
-# List projects
-iex> Maintenance.projects()
-[:otp]
-
-# List jobs for a project
-iex> Maintenance.jobs(:otp)
-[:unicode]
-
-# To run a specific job for a certain project
-iex> Maintenance.Runner.update(:otp, :unicode)
-{:ok, :no_update_needed}
-```
-
-### Publishing
-
-By default jobs do not push branches or open pull requests. They update the
-local checkout under `~/maintenance_data/cache` and commit to a new branch
-there, and the log shows the pull request that would have been opened.
-
-Set `MAINTENANCE_PUBLISH=true` to push branches and open pull requests.
+Maintenance is for occasional use: run it when a new version of Unicode comes out, which is about once a year. It is three Mix commands, run from the root of this repository.
 
 ```sh
-MAINTENANCE_PUBLISH=true iex -S mix
+mix maintenance                                    # the commands, projects, jobs and forks
+mix maintenance.status [PROJECT [JOB]]             # which jobs are due
+mix maintenance.run PROJECT JOB                    # build the commit locally
+mix maintenance.publish PROJECT JOB --fork FORK    # push it and open the pull request
 ```
 
-Pull requests are opened inside a fork, never in the original project.
-A run with `MIX_ENV=prod` uses the `maintenance-beam` fork. Any other
-environment uses the `maintenance-beam-app` fork. The pull request goes from
-the new branch into the fork's main branch.
+### 1. See what is due
+
+```sh
+mix maintenance.status
+```
+
+```text
+elixir  unicode  17.0.0 -> 18.0.0  due
+otp     unicode  17.0.0 -> 18.0.0  due
+```
+
+A job is `due`, `up to date`, or due with a pull request that is already open
+(`PR open: <url>`). The command reads from unicode.org and GitHub. It needs no token.
+
+### 2. Build the commit
+
+```sh
+mix maintenance.run otp unicode
+```
+
+This updates the checkout under `~/maintenance_data/cache` and commits the changes to
+a new branch there. Nothing is pushed. The command prints the path of the checkout, the
+files that changed, and the `git show` command to inspect the commit. It does nothing
+if the job is up to date or a pull request for it is already open. You can run it again:
+it starts from the upstream branch each time.
+
+### 3. Publish it
+
+Publishing is the only step that needs a GitHub token. Store `GITHUB_ACCESS_TOKEN` in
+`.env` and run `source .env` in your terminal.
+
+```sh
+mix maintenance.publish otp unicode --fork maintenance-beam-app
+```
+
+`--fork` is required. It is one of the forks in `config/config.exs`, and the error
+message for a missing or unknown fork lists them. Pull requests are opened inside a
+fork, never in the original project, from the new branch into the fork's main branch.
+The title of the pull request is the subject of the commit.
+
+The command pushes the commit that `mix maintenance.run` built, as it is. If there is
+no such commit, it tells you to run `mix maintenance.run PROJECT JOB` first. If a
+pull request for the branch already exists on the fork, it prints its URL and pushes
+nothing.
 
 Each publish also fast-forwards the fork's main branch to the upstream commit
 the job started from, so the pull request shows only the new commits. If the
