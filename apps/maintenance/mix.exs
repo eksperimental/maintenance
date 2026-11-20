@@ -36,10 +36,8 @@ defmodule Maintenance.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:swoosh, "~> 1.3"},
       {:req, "~> 0.7"},
       {:cubdb, "~> 1.1.0"},
-      {:quantum, "~> 3.0"},
       {:plug, "~> 1.0", only: :test}
     ]
   end

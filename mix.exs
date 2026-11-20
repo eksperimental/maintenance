@@ -18,7 +18,6 @@ defmodule Maintenance.Umbrella.MixProject do
       description: @description,
       deps: deps(),
       aliases: aliases(),
-      releases: releases(),
 
       # Docs
       name: @name,
@@ -87,16 +86,6 @@ defmodule Maintenance.Umbrella.MixProject do
           raise("#{type} failed.")
       end
     end
-  end
-
-  defp releases do
-    [
-      maintenance: [
-        applications: [
-          maintenance: :permanent
-        ]
-      ]
-    ]
   end
 
   defp docs do
