@@ -1,5 +1,4 @@
 %{
-  "beam_langs_meta_data": {:git, "https://github.com/eksperimental/beam_langs_meta_data/", "23fb5a55c71e961e79000b21b18e693f8bd62feb", [branch: "main"]},
   "bunt": {:hex, :bunt, "1.0.0", "081c2c665f086849e6d57900292b3a161727ab40431219529f13c4ddcf3e7a44", [:mix], [], "hexpm", "dc5f86aa08a5f6fa6b8096f0735c4e76d54ae5c9fa2c143e5a1fc7c1cd9bb6b5"},
   "credo": {:git, "https://github.com/rrrene/credo.git", "b113eb2e5ff7bf17875f370f1f06598f20af9871", []},
   "credo_tokenizer": {:hex, :credo_tokenizer, "0.2.8", "ebea7f4ea8c8123c02bb2a66538b1a1daf16fc59fed5fa36145e1bb7a3563628", [:mix], [], "hexpm", "2794396d0d317bb3ed0ecd5df0d9fe7f391f26d783bb879cfe1237846f680ac3"},
@@ -36,5 +35,4 @@
   "telemetry": {:hex, :telemetry, "1.4.3", "d0333fa869361e6833d6ff8e806ff4d8553fe1332fcce0af86c7381951a1dc2f", [:rebar3], [], "hexpm", "17a63581cf2e832a238287f5fe6811e8ca1f333249f1376ad653164a3c4770d4"},
   "telemetry_registry": {:hex, :telemetry_registry, "0.3.2", "701576890320be6428189bff963e865e8f23e0ff3615eade8f78662be0fc003c", [:mix, :rebar3], [{:telemetry, "~> 1.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "e7ed191eb1d115a3034af8e1e35e4e63d5348851d556646d46ca3d1b4e16bab9"},
   "text_diff": {:hex, :text_diff, "0.1.0", "1caf3175e11a53a9a139bc9339bd607c47b9e376b073d4571c031913317fecaa", [:mix], [], "hexpm", "d1ffaaecab338e49357b6daa82e435f877e0649041ace7755583a0ea3362dbd7"},
-  "unicode_util_compat": {:hex, :unicode_util_compat, "0.7.1", "a48703a25c170eedadca83b11e88985af08d35f37c6f664d6dcfb106a97782fc", [:rebar3], [], "hexpm", "b3a917854ce3ae233619744ad1e0102e05673136776fb2fa76234f3e03b23642"},
 }

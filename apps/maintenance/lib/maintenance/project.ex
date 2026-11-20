@@ -6,7 +6,7 @@ defmodule Maintenance.Project do
   alias Maintenance.DB
 
   # Add new projects here
-  @type t :: :sample_project | :elixir | :otp | :beam_langs_meta_data
+  @type t :: :elixir | :otp
 
   @typep remote :: :dev | :origin | :upstream
 

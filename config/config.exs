@@ -68,15 +68,6 @@ config :maintenance,
   author_name: "Maintenance App",
   author_email: "eksperimental@tutamail.com",
   project_configs: %{
-    # beam_langs_meta_data: %{
-    #   repo: "beam_langs_meta_data",
-    #   main_branch: "main",
-    #   owner: %{
-    #     origin: "eksperimental",
-    #     upstream: owner_upstream,
-    #     dev: owner_dev
-    #   }
-    # },
     elixir: %{
       repo: "elixir",
       main_branch: "main",
@@ -97,15 +88,6 @@ config :maintenance,
       author_name: "Eksperimental",
       author_email: "eksperimental@tutamail.com"
     }
-    # sample_project: %{
-    #   repo: "sample_project",
-    #   main_branch: "main",
-    #   owner: %{
-    #     origin: "maintenance-beam",
-    #     upstream: owner_upstream,
-    #     dev: owner_dev
-    #   }
-    # }
   }
 
 # Import environment specific config. This must remain at the bottom
