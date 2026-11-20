@@ -178,6 +178,9 @@ defmodule Maintenance do
           | {:pr_exists, url :: String.t()}
           | {:error, :branch_missing | term()}
   def publish(project, job, fork) when is_project(project) and is_job(job) and is_binary(fork) do
+    # Fail before the checkout is moved to the branch, which pushing needs the token for.
+    _token = github_access_token!()
+
     {_status, %{branch: branch}} = job_module(job).status(project)
     %{repo: repo, main_branch: main_branch} = Project.config!(project)
 

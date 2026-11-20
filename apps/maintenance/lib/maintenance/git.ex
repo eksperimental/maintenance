@@ -270,6 +270,21 @@ defmodule Maintenance.Git do
   end
 
   @doc """
+  Returns the summary of what `branch` changes compared to the main branch.
+  """
+  @spec diff_stat(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
+  def diff_stat(project, branch) when is_project(project) and is_binary(branch) do
+    main_branch = Project.config!(project, :main_branch)
+
+    case System.cmd("git", ["diff", "--stat", "#{main_branch}...#{branch}", "--"],
+           cd: path(project)
+         ) do
+      {stat, 0} -> {:ok, String.trim_trailing(stat)}
+      error -> {:error, error}
+    end
+  end
+
+  @doc """
   Returns the subject, the first line of the message, of the last commit of `branch`.
   """
   @spec commit_subject(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
