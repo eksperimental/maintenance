@@ -54,7 +54,7 @@ request is opened.
 
 ## Contact
 
-Eksperimental <eksperimental (at) autistici (dot) org>
+Eksperimental <eksperimental (at) tutamail (dot) com>
 
 ## License
 
