@@ -8,3 +8,6 @@ config :maintenance, data_dir: Path.expand("../_build/test/maintenance_data", __
 
 # Route GitHub API requests to Req.Test stubs.
 config :maintenance, :github_req_options, plug: {Req.Test, Maintenance.Github}, retry: false
+
+# Route Unicode data downloads to Req.Test stubs.
+config :maintenance, :unicode_req_options, plug: {Req.Test, MaintenanceJob.Unicode}, retry: false

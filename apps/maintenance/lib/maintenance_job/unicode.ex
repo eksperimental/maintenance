@@ -12,6 +12,7 @@ defmodule MaintenanceJob.Unicode do
   alias Maintenance.Util
 
   @job :unicode
+  @req_options Application.compile_env(:maintenance, :unicode_req_options, [])
   @otp_regex_gen_unicode_version ~r/(spec_version\(\)\s+->\s+\{)((?<major>\d+),(?<minor>\d+)(,(?<patch>\d+))?)(\}\.\\n)/
 
   #############################
@@ -495,7 +496,7 @@ defmodule MaintenanceJob.Unicode do
 
   defp get!(file_type, version, url)
        when is_file_type(file_type) and is_version(version) and is_binary(url) do
-    response = Req.get!(url)
+    response = Req.get!(url, [decoders: [:zip]] ++ @req_options)
 
     case response.status do
       200 ->
