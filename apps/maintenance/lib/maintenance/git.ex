@@ -318,21 +318,6 @@ defmodule Maintenance.Git do
     end
   end
 
-  @spec add(Maintenance.project(), binary | [binary]) :: :ok | {:error, term()}
-  def add(project, file_or_list_of_files)
-
-  def add(project, file) when is_project(project) and is_binary(file),
-    do: add(project, [file])
-
-  def add(project, files) when is_project(project) and is_list(files) do
-    git_path = path(project)
-
-    case System.cmd("git", List.flatten(["add", files]), cd: git_path) do
-      {_response_string, 0} -> :ok
-      error -> {:error, error}
-    end
-  end
-
   @doc """
   Discards every uncommitted change in the working tree, including untracked files.
   """
@@ -354,37 +339,6 @@ defmodule Maintenance.Git do
       :ok
     else
       error -> {:error, error}
-    end
-  end
-
-  @spec get_ref_date_time(Maintenance.project(), String.t()) ::
-          {:ok, DateTime.t()} | {:error, term}
-  def get_ref_date_time(project, ref) when is_project(project) when is_binary(ref) do
-    with git_path <- path(project),
-         {output, 0} <- System.cmd("git", ["show", "-s", "--format=%ct", ref, "--"], cd: git_path) do
-      result =
-        output
-        |> String.trim()
-        |> String.split("\n")
-        |> List.last()
-        |> String.to_integer()
-        |> DateTime.from_unix!()
-
-      {:ok, result}
-    else
-      error ->
-        {:error, error}
-    end
-  end
-
-  @spec get_commit_id(Maintenance.project(), String.t()) :: {:ok, String.t()} | {:error, term}
-  def get_commit_id(project, tag) when is_project(project) and is_binary(tag) do
-    with git_path <- path(project),
-         {output, 0} <- System.cmd("git", ["rev-list", "-n", "1", tag, "--"], cd: git_path) do
-      {:ok, String.trim(output)}
-    else
-      error ->
-        {:error, error}
     end
   end
 
