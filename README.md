@@ -4,6 +4,11 @@
 app which aims to automatize tasks in codebases of the Elixir, Erlang,
 or any other project using a Git repository (only GitHub is initially supported).
 
+It is mainly used to keep Unicode in Erlang/OTP and Elixir updated to the latest version.
+See the pull requests submitted to
+[Erlang/OTP](https://github.com/erlang/otp/pulls?q=is%3Apr+in%3Atitle+%22Update+Unicode%22) and
+[Elixir](https://github.com/elixir-lang/elixir/pulls?q=is%3Apr+%28in%3Atitle+%22Update+Unicode%22+OR+in%3Atitle+%22Upgrade+Unicode%22%29).
+
 ## Feature Requests & Bug reports
 
 Feel free to open up an issue <https://github.com/eksperimental/maintenance/issues> with your request/report.
