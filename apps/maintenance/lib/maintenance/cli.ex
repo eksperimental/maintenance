@@ -58,6 +58,9 @@ defmodule Maintenance.CLI do
   def describe_error({:latest_unicode_version_not_found, url}),
     do: "latest Unicode version not found at " <> url
 
+  def describe_error({:download_failed, url, status}),
+    do: "could not download #{url} (HTTP #{status})"
+
   def describe_error(error = %Req.TransportError{}),
     do: "network error (" <> Exception.message(error) <> ")"
 

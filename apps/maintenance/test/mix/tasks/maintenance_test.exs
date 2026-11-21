@@ -275,10 +275,7 @@ defmodule Mix.Tasks.MaintenanceTest do
     end
 
     test "asks unicode.org for the latest Unicode version only once" do
-      :UCD
-      |> Unicode.get_path(Version.parse!("17.0.0"))
-      |> File.rm_rf!()
-
+      forget_cached_ucd()
       {:ok, asked} = Agent.start_link(fn -> 0 end)
 
       stub_unicode_versions(%{
@@ -299,7 +296,36 @@ defmodule Mix.Tasks.MaintenanceTest do
 
       error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
 
-      assert error.message == "Could not build the commit for otp unicode: 404"
+      assert error.message ==
+               "Could not build the commit for otp unicode: could not download " <>
+                 "https://www.unicode.org/Public/17.0.0/ucd/UCD.zip (HTTP 404)"
+    end
+
+    test "names the Unicode file that could not be downloaded" do
+      forget_cached_ucd()
+
+      stub_unicode_versions(%{
+        "/Public/17.0.0/ucd/UCD.zip" => &Plug.Conn.send_resp(&1, 404, "")
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: could not download " <>
+                 "https://www.unicode.org/Public/17.0.0/ucd/UCD.zip (HTTP 404)"
+    end
+
+    test "tells when a Unicode file cannot be downloaded" do
+      forget_cached_ucd()
+
+      stub_unicode_versions(%{
+        "/Public/17.0.0/ucd/UCD.zip" => &Req.Test.transport_error(&1, :econnrefused)
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: network error (connection refused)"
     end
 
     test "shows where the commit is and what to run next", %{tmp_dir: _tmp_dir} do
@@ -493,6 +519,13 @@ defmodule Mix.Tasks.MaintenanceTest do
           Plug.Conn.send_resp(conn, 200, ~S|io:put_chars(Fd, "spec_version() -> {16,0}.\n"),|)
       end
     end)
+  end
+
+  # Makes `mix maintenance.run` download the UCD of 17.0.0 instead of reading it from the cache.
+  defp forget_cached_ucd() do
+    :UCD
+    |> Unicode.get_path(Version.parse!("17.0.0"))
+    |> File.rm_rf!()
   end
 
   defp set_status(status) do

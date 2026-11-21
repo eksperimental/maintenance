@@ -22,6 +22,8 @@ defmodule MaintenanceJob.Unicode do
   @type version :: %Version{}
   @type response :: %Finch.Response{}
   @type response_status :: pos_integer()
+  @type download_error ::
+          {:download_failed, url :: String.t(), response_status} | Exception.t()
   @type contents :: %{required(file_name :: String.t()) => file_contents :: String.t()}
   @type file_type :: :UCD | :UTS39
 
@@ -504,57 +506,59 @@ defmodule MaintenanceJob.Unicode do
   end
 
   @doc """
-  Gets a Unicode file.
+  Downloads the zipped Unicode files of `version` and caches them.
 
   `file_type` can be:
-  - `:UCD` - Retrieves the Unicode Character Database in zipped format.
-  - `:UTS39` -  Unicode Technical Standard #39; retrieves the Unicode Security Data in zipped format.
+  - `:UCD` - the Unicode Character Database.
+  - `:UTS39` - Unicode Technical Standard #39, the Unicode Security Data.
 
-  If it has been previously retrieved, it will be obtained from the cache.
-  The file zip file is received and stored as a map, where the key of every entry
-  is the relative path within the zip file.
+  The files are returned as a map, where the key of every entry is its relative path
+  within the zip file. When unicode.org answers with another status than 200, the error
+  is `{:download_failed, url, status}`. When the request fails, the error is its exception,
+  such as `Req.TransportError`.
   """
-  @spec get!(file_type, version) :: {:ok, contents} | {:error, Mint.Types.status()}
-        when file_type: :UCD | :UTS39
-  def get!(:UCD, version) when is_version(version) do
-    get!(:UCD, version, "https://www.unicode.org/Public/#{version}/ucd/UCD.zip")
+  @spec download(file_type, version) :: {:ok, contents} | {:error, download_error}
+  def download(:UCD, version) when is_version(version) do
+    download(:UCD, version, "https://www.unicode.org/Public/#{version}/ucd/UCD.zip")
   end
 
-  def get!(:UTS39, version) when is_version(version) do
-    get!(
+  def download(:UTS39, version) when is_version(version) do
+    download(
       :UTS39,
       version,
       "https://www.unicode.org/Public/#{version}/security/uts39-data-#{version}.zip"
     )
   end
 
-  defp get!(file_type, version, url)
+  defp download(file_type, version, url)
        when is_file_type(file_type) and is_version(version) and is_binary(url) do
-    response = Req.get!(url, [decoders: [:zip]] ++ @req_options)
-
-    case response.status do
-      200 ->
-        body = Map.new(response.body, fn {k, v} -> {List.to_string(k), v} end)
+    case Req.get(url, [decoders: [:zip]] ++ @req_options) do
+      {:ok, %Req.Response{status: 200, body: body}} ->
+        contents = Map.new(body, fn {k, v} -> {List.to_string(k), v} end)
 
         Task.Supervisor.start_child(Maintenance.TaskSupervisor, fn ->
-          write(file_type, version, body)
+          write(file_type, version, contents)
         end)
 
-        {:ok, body}
+        {:ok, contents}
 
-      _other ->
-        {:error, response.status}
+      {:ok, %Req.Response{status: status}} ->
+        {:error, {:download_failed, url, status}}
+
+      {:error, exception} ->
+        {:error, exception}
     end
   end
 
   @doc """
-  Gets the `file_type` files of `version`, from the cache when they were downloaded before.
+  Gets the `file_type` files of `version`, from the cache when they were downloaded before,
+  and otherwise with `download/2`.
   """
-  @spec get(file_type, version) :: {:ok, contents} | {:error, response_status}
+  @spec get(file_type, version) :: {:ok, contents} | {:error, download_error}
   def get(file_type, version) when is_file_type(file_type) and is_version(version) do
     case read(file_type, version) do
       {:ok, contents} -> {:ok, contents}
-      {:error, _posix} -> get!(file_type, version)
+      {:error, _posix} -> download(file_type, version)
     end
   end
 

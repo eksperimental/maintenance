@@ -125,6 +125,10 @@ files that changed, and the `git show` command to inspect the commit. It does no
 if the job is up to date or a pull request for it is already open. You can run it again:
 it starts from the upstream branch each time.
 
+The Unicode files are downloaded from unicode.org once and then read from the cache. When a
+download fails, `run` stops with `could not download <url> (HTTP <status>)` or
+`network error (<reason>)`, and leaves the checkout as it was.
+
 ### 3. Publish it
 
 Publishing is the only step that needs a GitHub token. It is in `.env`, from

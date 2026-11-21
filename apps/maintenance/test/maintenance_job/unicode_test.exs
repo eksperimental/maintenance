@@ -3,7 +3,7 @@ defmodule MaintenanceJob.UnicodeTest do
 
   alias MaintenanceJob.Unicode
 
-  describe "get!/2" do
+  describe "download/2" do
     setup do
       on_exit(fn -> await_cache_writes() end)
     end
@@ -30,7 +30,7 @@ defmodule MaintenanceJob.UnicodeTest do
         |> Plug.Conn.send_resp(200, zip)
       end)
 
-      assert Unicode.get!(:UTS39, version) ==
+      assert Unicode.download(:UTS39, version) ==
                {:ok,
                 %{
                   "confusables.txt" => "confusables\n",
@@ -111,7 +111,7 @@ defmodule MaintenanceJob.UnicodeTest do
     end
   end
 
-  # get!/2 writes the download to the cache in a background task.
+  # download/2 writes the download to the cache in a background task.
   defp await_cache_writes() do
     for pid <- Task.Supervisor.children(Maintenance.TaskSupervisor) do
       ref = Process.monitor(pid)
