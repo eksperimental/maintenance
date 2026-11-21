@@ -18,6 +18,7 @@ defmodule Maintenance.Umbrella.MixProject do
       description: @description,
       deps: deps(),
       aliases: aliases(),
+      dialyzer: [plt_add_apps: [:mix]],
 
       # Docs
       name: @name,
@@ -33,7 +34,7 @@ defmodule Maintenance.Umbrella.MixProject do
       # {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
-      {:recode, "~> 0.7", only: :dev}
+      {:recode, "~> 0.9", only: :dev}
     ]
   end
 

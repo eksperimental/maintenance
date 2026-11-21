@@ -3,7 +3,8 @@ defmodule Maintenance.GitTest do
 
   import Maintenance.GitHelpers
 
-  alias Maintenance.{Git, Project}
+  alias Maintenance.Git
+  alias Maintenance.Project
 
   @moduletag :tmp_dir
 

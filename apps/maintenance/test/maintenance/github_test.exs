@@ -12,7 +12,7 @@ defmodule Maintenance.GithubTest do
         assert conn.host == "api.github.com"
         assert conn.request_path == "/repos/owner/repo/pulls"
         assert Plug.Conn.get_req_header(conn, "accept") == ["application/vnd.github+json"]
-        assert ["token " <> _] = Plug.Conn.get_req_header(conn, "authorization")
+        assert ["token " <> _token] = Plug.Conn.get_req_header(conn, "authorization")
 
         {:ok, raw_body, conn} = Plug.Conn.read_body(conn)
         assert Jason.decode!(raw_body) == @body
