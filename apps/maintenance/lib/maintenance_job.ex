@@ -31,7 +31,7 @@ defmodule MaintenanceJob do
 
   It only reads from the network and never touches the Git checkout.
   """
-  @callback status(Maintenance.project()) :: {:due, info} | {:up_to_date, info}
+  @callback status(Maintenance.project()) :: {:due, info} | {:up_to_date, info} | {:error, term()}
 
   @doc """
   Writes the changes and commits them on the branch `c:status/1` reports.

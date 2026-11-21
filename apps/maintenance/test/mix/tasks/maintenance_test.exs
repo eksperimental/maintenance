@@ -174,6 +174,19 @@ defmodule Mix.Tasks.MaintenanceTest do
                "There is no commit to publish for elixir fake_job. " <>
                  "Run `mix maintenance.run elixir fake_job` first."
     end
+
+    test "tells how to set the token when it is missing" do
+      previous = System.get_env("GITHUB_ACCESS_TOKEN")
+      on_exit(fn -> System.put_env("GITHUB_ACCESS_TOKEN", previous) end)
+      System.delete_env("GITHUB_ACCESS_TOKEN")
+
+      error =
+        assert_raise Mix.Error, fn ->
+          Publish.run(["elixir", "fake_job", "--fork", "maintenance-beam"])
+        end
+
+      assert error.message =~ "GITHUB_ACCESS_TOKEN is not set"
+    end
   end
 
   defp printed(output \\ "") do

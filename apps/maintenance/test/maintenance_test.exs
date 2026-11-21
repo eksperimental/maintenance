@@ -62,6 +62,14 @@ defmodule MaintenanceTest do
 
       refute_received {:prepare, _project}
     end
+
+    test "returns the error when the job cannot tell its status" do
+      set_status({:error, :unicode_version_not_found})
+
+      assert Maintenance.run(@project, @job) == {:error, :unicode_version_not_found}
+
+      refute_received {:prepare, _project}
+    end
   end
 
   describe "publish/3" do

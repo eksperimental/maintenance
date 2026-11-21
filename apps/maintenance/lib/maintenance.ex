@@ -139,6 +139,9 @@ defmodule Maintenance do
 
       {:up_to_date, _info} = up_to_date ->
         up_to_date
+
+      {:error, _reason} = error ->
+        error
     end
   end
 
@@ -176,15 +179,13 @@ defmodule Maintenance do
   @spec publish(project, job, fork) ::
           {:opened, url :: String.t()}
           | {:pr_exists, url :: String.t()}
-          | {:error, :branch_missing | term()}
+          | {:error, :missing_token | :branch_missing | term()}
   def publish(project, job, fork) when is_project(project) and is_job(job) and is_binary(fork) do
-    # Fail before the checkout is moved to the branch, which pushing needs the token for.
-    _token = github_access_token!()
-
-    {_status, %{branch: branch}} = job_module(job).status(project)
     %{repo: repo, main_branch: main_branch} = Project.config!(project)
 
-    with :ok <- ensure_committed(project, branch),
+    with :ok <- ensure_token(),
+         {_status, %{branch: branch}} <- job_module(job).status(project),
+         :ok <- ensure_committed(project, branch),
          :none <- Github.find_pull_request(fork, repo, branch),
          :ok <- push(project, branch, fork),
          {:ok, subject} <- Git.commit_subject(project, branch),
@@ -200,6 +201,10 @@ defmodule Maintenance do
       {:ok, url} -> {:pr_exists, url}
       {:error, _reason} = error -> error
     end
+  end
+
+  defp ensure_token() do
+    if github_access_token(), do: :ok, else: {:error, :missing_token}
   end
 
   defp find_pull_request(project, branch) do

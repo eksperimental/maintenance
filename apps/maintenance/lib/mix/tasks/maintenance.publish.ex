@@ -34,6 +34,9 @@ defmodule Mix.Tasks.Maintenance.Publish do
       {:pr_exists, url} ->
         Mix.shell().info("A pull request already exists: #{url}")
 
+      {:error, :missing_token} ->
+        Mix.raise("GITHUB_ACCESS_TOKEN is not set. Put it in .env and run `source .env`.")
+
       {:error, :branch_missing} ->
         Mix.raise(
           "There is no commit to publish for #{project} #{job}. " <>

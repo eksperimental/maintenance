@@ -47,16 +47,20 @@ defmodule MaintenanceJob.Unicode do
   Compares the Unicode version of `project` with the latest one published by unicode.org.
   """
   @impl MaintenanceJob
-  @spec status(Maintenance.project()) :: {:due | :up_to_date, MaintenanceJob.info()}
+  @spec status(Maintenance.project()) ::
+          {:due | :up_to_date, MaintenanceJob.info()} | {:error, :unicode_version_not_found}
   def status(project) when is_project(project) do
-    {:ok, current} = get_current_unicode_version(project)
-    {:ok, latest} = get_latest_unicode_version()
-    info = %{current: current, latest: latest, branch: branch(latest)}
+    with {:ok, current} <- get_current_unicode_version(project),
+         {:ok, latest} <- get_latest_unicode_version() do
+      info = %{current: current, latest: latest, branch: branch(latest)}
 
-    if Version.compare(latest, current) == :gt do
-      {:due, info}
+      if Version.compare(latest, current) == :gt do
+        {:due, info}
+      else
+        {:up_to_date, info}
+      end
     else
-      {:up_to_date, info}
+      :error -> {:error, :unicode_version_not_found}
     end
   end
 
