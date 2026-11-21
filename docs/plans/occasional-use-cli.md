@@ -9,7 +9,7 @@ Run a yearly job without remembering anything:
 ```sh
 mix maintenance.status                  # what is due?
 mix maintenance.run otp unicode         # build the commit locally
-mix maintenance.publish otp unicode --fork maintenance-beam   # push that commit, open the PR
+mix maintenance.publish otp unicode    # push that commit, open the PR
 ```
 
 The app was built to run all the time on a server. It is now used by hand, a
@@ -55,7 +55,7 @@ already has a PR for that branch, it prints the URL and does nothing.
 
 Unknown project or job: the error lists the valid ones.
 
-### `mix maintenance.publish PROJECT JOB --fork OWNER`
+### `mix maintenance.publish PROJECT JOB [--fork OWNER]`
 
 Pushes the branch that `run` left behind, without rebuilding it, and opens
 the PR inside the fork. Steps:
@@ -100,15 +100,16 @@ Add `Github.find_pull_request(owner, repo, head)`
 `~/maintenance_data/database` is lost on a new machine and forgotten after
 a year. GitHub is the record.
 
-### Fork selection: a flag, not `MIX_ENV`
+### Fork selection: the runner's account, not `MIX_ENV`
 
-Today `MIX_ENV=prod` picks `maintenance-beam` and anything else picks
-`maintenance-beam-app` (`git.ex:360`). Replace that with a required
-`--fork OWNER`, checked against a new `forks: ["maintenance-beam",
-"maintenance-beam-app"]` config list. That list replaces the `upstream` and
-`dev` entries in the `owner` map of each project, so `owner` keeps only
-`origin`.
+`MIX_ENV` used to pick the fork between two fixed accounts. Now the config
+holds only the upstream projects. The fork is the one of `GITHUB_ACCOUNT`,
+set in `.env`, and `--fork OWNER` picks another one. `status`, `run` and
+`publish` all take `--fork`, and each stops when neither is given.
 `Maintenance.env!/0` goes away.
+
+The config holds no name or email either. Commits use the Git identity of
+whoever runs the app, and `run` stops when Git has none.
 
 ### Token read only when needed
 
@@ -146,8 +147,8 @@ path dependency, which stops a fresh clone from building.
    `find_pull_request` with `Req.Test` stubs (found, not found, API error).
 4. **Read the token only when it is used.** Check: `mix run -e
    'IO.inspect(Maintenance.projects())'` with the variable unset.
-5. **Split the job contract and add `Maintenance.Publish`; `--fork` replaces
-   `MIX_ENV`; drop `MAINTENANCE_PUBLISH`.** Tests against a local bare
+5. **Split the job contract and add `Maintenance.Publish`; `GITHUB_ACCOUNT`
+   and `--fork` replace `MIX_ENV`; drop `MAINTENANCE_PUBLISH`.** Tests against a local bare
    repository, like `git_test.exs`: publish pushes the existing commit
    unchanged and opens a PR titled with its subject; an existing PR means no
    push; a missing branch gives the "run first" error.
@@ -156,14 +157,14 @@ path dependency, which stops a fresh clone from building.
    real network, with no publish.
 7. **Rewrite the README Usage section** around the three commands.
 
-A real `mix maintenance.publish --fork maintenance-beam-app` opens a
-public PR, so it runs only when you ask for it.
+A real `mix maintenance.publish` opens a public PR, so it runs only when
+you ask for it.
 
 ## Decisions
 
 1. Delete the release jobs, the sample job, `data.ex` and the
    `beam_langs_meta_data` dependency. Git history keeps them.
-2. `--fork` is required on `mix maintenance.publish`. Without it, the error
-   lists the configured forks.
+2. `--fork` is optional and defaults to `GITHUB_ACCOUNT`. Without either,
+   the error says how to set `GITHUB_ACCOUNT`.
 3. The PR title is the commit subject, for example "Update Unicode to version
    17.0.0".

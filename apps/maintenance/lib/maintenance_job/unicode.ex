@@ -537,7 +537,6 @@ defmodule MaintenanceJob.Unicode do
   def get_current_unicode_version(:elixir) do
     result =
       "https://raw.githubusercontent.com/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex"
-      # "https://raw.githubusercontent.com/maintenance-beam/elixir/main/lib/elixir/unicode/unicode.ex"
       |> Req.get!()
       |> then(&Regex.named_captures(~r/def version, do: {(?<version>\d+, \d+, \d+)}/, &1.body))
 
