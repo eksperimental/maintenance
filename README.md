@@ -103,7 +103,8 @@ command reads from unicode.org and GitHub. It needs no token.
 A job that cannot be checked shows the error on its line, and the command exits with an
 error after it prints every line. For example, `error: <account>/otp not found on GitHub`
 means that the account has no fork of `erlang/otp`. `run` and `publish` stop with the same
-message.
+message. GitHub answers 60 requests an hour without a token, and the line says when
+that limit resets once it is used up.
 
 ### 2. Build the commit
 

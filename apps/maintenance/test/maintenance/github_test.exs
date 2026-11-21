@@ -112,11 +112,24 @@ defmodule Maintenance.GithubTest do
       Req.Test.stub(Github, fn conn ->
         conn
         |> Plug.Conn.put_status(403)
+        |> Req.Test.json(%{"message" => "Repository access blocked"})
+      end)
+
+      assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") ==
+               {:error, {403, %{"message" => "Repository access blocked"}}}
+    end
+
+    test "returns when the rate limit resets when GitHub answers 429 with none left" do
+      Req.Test.stub(Github, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("x-ratelimit-remaining", "0")
+        |> Plug.Conn.put_resp_header("x-ratelimit-reset", "1795300860")
+        |> Plug.Conn.put_status(429)
         |> Req.Test.json(%{"message" => "API rate limit exceeded"})
       end)
 
       assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") ==
-               {:error, {403, %{"message" => "API rate limit exceeded"}}}
+               {:error, {:rate_limited, ~U[2026-11-21 22:41:00Z]}}
     end
 
     test "returns the exception when the request cannot be sent" do

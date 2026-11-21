@@ -98,6 +98,29 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert error.message == "Could not check otp unicode"
     end
 
+    test "tells until when the GitHub rate limit is used up" do
+      Req.Test.stub(Github, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("x-ratelimit-remaining", "0")
+        |> Plug.Conn.put_resp_header("x-ratelimit-reset", "1795300860")
+        |> Plug.Conn.put_status(403)
+        |> Req.Test.json(%{"message" => "API rate limit exceeded for 203.0.113.5."})
+      end)
+
+      assert_raise Mix.Error, fn -> Status.run(["elixir", "fake_job"]) end
+
+      assert printed() ==
+               "elixir  fake_job    error: GitHub rate limit reached, try again after 22:41 UTC\n"
+    end
+
+    test "tells when GitHub cannot be reached" do
+      Req.Test.stub(Github, &Req.Test.transport_error(&1, :econnrefused))
+
+      assert_raise Mix.Error, fn -> Status.run(["elixir", "fake_job"]) end
+
+      assert printed() == "elixir  fake_job    error: network error (connection refused)\n"
+    end
+
     test "asks for --fork or GITHUB_ACCOUNT when neither is given" do
       put_env("GITHUB_ACCOUNT", nil)
 

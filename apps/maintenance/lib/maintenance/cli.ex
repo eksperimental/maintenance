@@ -48,6 +48,13 @@ defmodule Maintenance.CLI do
   """
   @spec describe_error(term()) :: String.t()
   def describe_error({:not_found, repo}), do: repo <> " not found on GitHub"
+
+  def describe_error({:rate_limited, reset_at}),
+    do: "GitHub rate limit reached, try again after " <> Calendar.strftime(reset_at, "%H:%M UTC")
+
+  def describe_error(error = %Req.TransportError{}),
+    do: "network error (" <> Exception.message(error) <> ")"
+
   def describe_error(reason), do: inspect(reason)
 
   defp find!(atoms, name, singular, plural) do

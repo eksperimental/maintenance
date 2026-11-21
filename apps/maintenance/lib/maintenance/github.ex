@@ -24,12 +24,13 @@ defmodule Maintenance.Github do
   The pull requests are opened inside a fork, so the head's owner is the repository's owner.
   No token is sent, so an expired `GITHUB_ACCESS_TOKEN` cannot break `status` and `run`.
   When GitHub has no `owner/repo`, such as a fork that was never made, the error is
-  `{:not_found, "owner/repo"}`.
+  `{:not_found, "owner/repo"}`. When the rate limit for requests without a token is used
+  up, the error is `{:rate_limited, reset_at}`.
   """
   @spec find_pull_request(String.t(), String.t(), String.t()) ::
           {:open | :closed, url :: String.t()}
           | :none
-          | {:error, {:not_found, String.t()} | term()}
+          | {:error, {:not_found, String.t()} | {:rate_limited, DateTime.t()} | term()}
   def find_pull_request(owner, repo, branch) do
     url = "https://api.github.com/repos/#{owner}/#{repo}/pulls"
 
@@ -43,10 +44,22 @@ defmodule Maintenance.Github do
       {:ok, %{status: 200, body: []}} -> :none
       {:ok, %{status: 200, body: [_first | _rest] = pull_requests}} -> pick(pull_requests)
       {:ok, %{status: 404}} -> {:error, {:not_found, owner <> "/" <> repo}}
+      {:ok, %{status: status} = response} when status in [403, 429] -> rejected(response)
       {:ok, %{status: status, body: body}} -> {:error, {status, body}}
       {:error, exception} -> {:error, exception}
     end
   end
+
+  defp rejected(%{headers: %{"x-ratelimit-remaining" => ["0"], "x-ratelimit-reset" => [reset]}}) do
+    reset_at =
+      reset
+      |> String.to_integer()
+      |> DateTime.from_unix!()
+
+    {:error, {:rate_limited, reset_at}}
+  end
+
+  defp rejected(%{status: status, body: body}), do: {:error, {status, body}}
 
   # GitHub lists the newest pull request first.
   defp pick(pull_requests) do
