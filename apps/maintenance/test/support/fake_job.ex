@@ -4,7 +4,7 @@ defmodule MaintenanceJob.FakeJob do
 
   A test sets its status and the process to notify with
   `Application.put_env(:maintenance, MaintenanceJob.FakeJob, status: status, notify: pid)`.
-  `prepare/1` sends `{:prepare, project}` to that process and does no git work.
+  `prepare/2` sends `{:prepare, project}` to that process and does no git work.
   """
 
   @behaviour MaintenanceJob
@@ -19,8 +19,7 @@ defmodule MaintenanceJob.FakeJob do
   def status(_project), do: Keyword.fetch!(options(), :status)
 
   @impl MaintenanceJob
-  def prepare(project) do
-    {_status, info} = status(project)
+  def prepare(project, info) do
     send(Keyword.fetch!(options(), :notify), {:prepare, project})
 
     {:ok, :committed, info.branch}

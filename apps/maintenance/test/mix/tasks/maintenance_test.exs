@@ -274,6 +274,34 @@ defmodule Mix.Tasks.MaintenanceTest do
                  "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
     end
 
+    test "asks unicode.org for the latest Unicode version only once" do
+      :UCD
+      |> Unicode.get_path(Version.parse!("17.0.0"))
+      |> File.rm_rf!()
+
+      {:ok, asked} = Agent.start_link(fn -> 0 end)
+
+      stub_unicode_versions(%{
+        "/versions/latest/" => fn conn ->
+          if Agent.get_and_update(asked, &{&1, &1 + 1}) == 0 do
+            conn
+            |> Plug.Conn.put_resp_header(
+              "location",
+              "https://www.unicode.org/versions/Unicode17.0.0/"
+            )
+            |> Plug.Conn.send_resp(302, "")
+          else
+            Req.Test.transport_error(conn, :econnrefused)
+          end
+        end,
+        "/Public/17.0.0/ucd/UCD.zip" => &Plug.Conn.send_resp(&1, 404, "")
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message == "Could not build the commit for otp unicode: 404"
+    end
+
     test "shows where the commit is and what to run next", %{tmp_dir: _tmp_dir} do
       local = Git.path(:elixir)
       File.rm_rf!(local)

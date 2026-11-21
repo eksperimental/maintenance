@@ -161,17 +161,17 @@ defmodule Maintenance do
       {:error, _reason} = error ->
         error
 
-      {:due, _info} ->
-        build(project, job)
+      {:due, info} ->
+        build(project, job, info)
 
-      {:pr_closed, _info, _url} ->
-        build(project, job)
+      {:pr_closed, info, _url} ->
+        build(project, job, info)
     end
   end
 
-  defp build(project, job) do
+  defp build(project, job, info) do
     with :ok <- ensure_git_identity(),
-         {:ok, :committed, branch} <- job_module(job).prepare(project) do
+         {:ok, :committed, branch} <- job_module(job).prepare(project, info) do
       {:committed, %{branch: branch, path: Git.path(project)}}
     end
   end

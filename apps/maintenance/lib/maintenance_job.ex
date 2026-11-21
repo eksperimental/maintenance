@@ -12,7 +12,7 @@ defmodule MaintenanceJob do
 
   @typedoc """
   What a job knows about a project: its `current` version, the `latest` one, and the
-  `branch` that `c:prepare/1` commits to.
+  `branch` that `c:prepare/2` commits to.
   """
   @type info :: %{current: Version.t(), latest: Version.t(), branch: String.t()}
 
@@ -34,10 +34,11 @@ defmodule MaintenanceJob do
   @callback status(Maintenance.project()) :: {:due, info} | {:up_to_date, info} | {:error, term()}
 
   @doc """
-  Writes the changes and commits them on the branch `c:status/1` reports.
+  Writes the changes for the `info` that `c:status/1` returned and commits them on its
+  `branch`.
 
   It never pushes, and it never asks GitHub.
   """
-  @callback prepare(Maintenance.project()) ::
+  @callback prepare(Maintenance.project(), info) ::
               {:ok, :committed, branch :: String.t()} | {:error, term()}
 end

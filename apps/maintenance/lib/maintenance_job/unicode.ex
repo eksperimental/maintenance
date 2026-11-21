@@ -72,15 +72,15 @@ defmodule MaintenanceJob.Unicode do
   end
 
   @doc """
-  Updates the Unicode files in the checkout of `project` and commits them on a new branch.
+  Updates the Unicode files in the checkout of `project` to the `latest` version that
+  `status/1` found, and commits them on a new branch.
   """
   @impl MaintenanceJob
-  @spec prepare(Maintenance.project()) :: {:ok, :committed, String.t()} | {:error, term()}
-  def prepare(project) when is_project(project) do
-    {:ok, latest} = get_latest_unicode_version()
-
-    with {:ok, contents_ucd} <- get_latest(:UCD),
-         {:ok, contents_uts39} <- get_latest(:UTS39) do
+  @spec prepare(Maintenance.project(), MaintenanceJob.info()) ::
+          {:ok, :committed, String.t()} | {:error, term()}
+  def prepare(project, %{latest: latest}) when is_project(project) do
+    with {:ok, contents_ucd} <- get(:UCD, latest),
+         {:ok, contents_uts39} <- get(:UTS39, latest) do
       prepare(project, latest, %{UCD: contents_ucd, UTS39: contents_uts39})
     end
   end
@@ -548,24 +548,13 @@ defmodule MaintenanceJob.Unicode do
   end
 
   @doc """
-  Gets the latest UCD zipped file.
+  Gets the `file_type` files of `version`, from the cache when they were downloaded before.
   """
-  @spec get_latest(file_type) :: {:ok, contents} | {:error, response_status}
-  def get_latest(file_type) when is_file_type(file_type) do
-    {:ok, latest_version} = get_latest_unicode_version()
-
-    case read(file_type, latest_version) do
-      {:ok, contents} ->
-        {:ok, contents}
-
-      {:error, _error} ->
-        case get!(file_type, latest_version) do
-          {:ok, contents} ->
-            {:ok, contents}
-
-          {:error, error_status} ->
-            {:error, error_status}
-        end
+  @spec get(file_type, version) :: {:ok, contents} | {:error, response_status}
+  def get(file_type, version) when is_file_type(file_type) and is_version(version) do
+    case read(file_type, version) do
+      {:ok, contents} -> {:ok, contents}
+      {:error, _posix} -> get!(file_type, version)
     end
   end
 
