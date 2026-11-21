@@ -19,23 +19,17 @@ defmodule Maintenance.Github do
   Finds the pull request, in any state, whose head is `branch` on `owner/repo`.
 
   The pull requests are opened inside a fork, so the head's owner is the repository's owner.
-  The token is sent only when `GITHUB_ACCESS_TOKEN` is set. Reading pull requests works without it.
+  No token is sent, so an expired `GITHUB_ACCESS_TOKEN` cannot break `status` and `run`.
   """
   @spec find_pull_request(String.t(), String.t(), String.t()) ::
           {:ok, String.t()} | :none | {:error, term()}
   def find_pull_request(owner, repo, branch) do
     url = "https://api.github.com/repos/#{owner}/#{repo}/pulls"
 
-    headers =
-      case Maintenance.github_access_token() do
-        nil -> []
-        token -> [{"Authorization", "token " <> token}]
-      end
-
     options =
       [
         params: [head: owner <> ":" <> branch, state: "all"],
-        headers: [{"Accept", "application/vnd.github+json"} | headers]
+        headers: [{"Accept", "application/vnd.github+json"}]
       ] ++ @req_options
 
     case Req.get(url, options) do

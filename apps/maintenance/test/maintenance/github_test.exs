@@ -95,20 +95,11 @@ defmodule Maintenance.GithubTest do
                {:error, %Req.TransportError{reason: :econnrefused}}
     end
 
-    test "sends no token when GITHUB_ACCESS_TOKEN is unset" do
-      Req.Test.stub(Github, fn conn ->
-        assert Plug.Conn.get_req_header(conn, "authorization") == []
-        Req.Test.json(conn, [])
-      end)
-
-      assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") == :none
-    end
-
-    test "sends the token when GITHUB_ACCESS_TOKEN is set" do
+    test "sends no token, even when GITHUB_ACCESS_TOKEN is set" do
       System.put_env("GITHUB_ACCESS_TOKEN", "secret")
 
       Req.Test.stub(Github, fn conn ->
-        assert Plug.Conn.get_req_header(conn, "authorization") == ["token secret"]
+        assert Plug.Conn.get_req_header(conn, "authorization") == []
         Req.Test.json(conn, [])
       end)
 
