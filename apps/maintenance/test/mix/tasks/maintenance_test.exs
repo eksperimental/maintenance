@@ -328,6 +328,27 @@ defmodule Mix.Tasks.MaintenanceTest do
                "Could not build the commit for otp unicode: network error (connection refused)"
     end
 
+    test "says what Git answered when the project cannot be cloned", %{tmp_dir: tmp_dir} do
+      checkout = Git.path(:otp)
+      File.rm_rf!(checkout)
+      on_exit(fn -> File.rm_rf!(checkout) end)
+
+      # Send the URL of OTP to a directory that holds no repository. The whole URL outranks a
+      # shorter insteadOf in the runner's own Git config.
+      put_env("GIT_CONFIG_COUNT", "1")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{tmp_dir}/missing.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/erlang/otp")
+
+      stub_unicode_versions(unicode_zips())
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: " <>
+                 "git clone --quiet https://github.com/erlang/otp --branch master #{checkout} " <>
+                 "failed: fatal: '#{tmp_dir}/missing' does not appear to be a git repository"
+    end
+
     test "shows where the commit is and what to run next", %{tmp_dir: _tmp_dir} do
       local = Git.path(:elixir)
       File.rm_rf!(local)
@@ -526,6 +547,38 @@ defmodule Mix.Tasks.MaintenanceTest do
     :UCD
     |> Unicode.get_path(Version.parse!("17.0.0"))
     |> File.rm_rf!()
+  end
+
+  # Answers the downloads of the Unicode 17.0.0 files with empty zips, and removes them from
+  # the cache when the test ends.
+  defp unicode_zips() do
+    on_exit(fn ->
+      for pid <- Task.Supervisor.children(Maintenance.TaskSupervisor) do
+        ref = Process.monitor(pid)
+        assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 5_000
+      end
+
+      for file_type <- [:UCD, :UTS39] do
+        file_type
+        |> Unicode.get_path(Version.parse!("17.0.0"))
+        |> File.rm_rf!()
+      end
+    end)
+
+    forget_cached_ucd()
+
+    {:ok, {_name, zip}} = :zip.create(~c"unicode.zip", [{~c"ReadMe.txt", ""}], [:memory])
+
+    send_zip = fn conn ->
+      conn
+      |> Plug.Conn.put_resp_content_type("application/zip", nil)
+      |> Plug.Conn.send_resp(200, zip)
+    end
+
+    %{
+      "/Public/17.0.0/ucd/UCD.zip" => send_zip,
+      "/Public/17.0.0/security/uts39-data-17.0.0.zip" => send_zip
+    }
   end
 
   defp set_status(status) do

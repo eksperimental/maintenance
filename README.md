@@ -127,7 +127,9 @@ it starts from the upstream branch each time.
 
 The Unicode files are downloaded from unicode.org once and then read from the cache. When a
 download fails, `run` stops with `could not download <url> (HTTP <status>)` or
-`network error (<reason>)`, and leaves the checkout as it was.
+`network error (<reason>)`, and leaves the checkout as it was. When Git cannot clone or update the
+checkout, for example because GitHub cannot be reached, `run` stops with the Git command
+and the first line of what Git said, such as `git clone ... failed: fatal: unable to access ...`.
 
 ### 3. Publish it
 

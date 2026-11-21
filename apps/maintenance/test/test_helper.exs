@@ -16,4 +16,8 @@ Req.default_options(
   retry: false
 )
 
+# The test cache is inside this repository. Git must never mistake it for a checkout and run
+# its commands on the repository around it.
+System.put_env("GIT_CEILING_DIRECTORIES", Maintenance.cache_path())
+
 ExUnit.start()

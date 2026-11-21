@@ -421,8 +421,13 @@ defmodule MaintenanceJob.Unicode do
   # checkout was on. If anything fails nothing stays behind: no changes and no branch.
   defp run_tasks(project, tasks, version) do
     new_branch = branch(version)
-    {:ok, _new_branch, previous_branch} = Git.setup_repo(project, new_branch)
 
+    with {:ok, _new_branch, previous_branch} <- Git.setup_repo(project, new_branch) do
+      commit_tasks(project, tasks, version, new_branch, previous_branch)
+    end
+  end
+
+  defp commit_tasks(project, tasks, version, new_branch, previous_branch) do
     with :ok <- run_in_parallel(tasks),
          :ok <- Git.commit(project, commit_msg(version)) do
       :ok = Git.checkout(project, previous_branch)

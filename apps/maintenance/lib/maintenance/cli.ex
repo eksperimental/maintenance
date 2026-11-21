@@ -61,6 +61,8 @@ defmodule Maintenance.CLI do
   def describe_error({:download_failed, url, status}),
     do: "could not download #{url} (HTTP #{status})"
 
+  def describe_error({:git_failed, command, output}), do: "#{command} failed: #{output}"
+
   def describe_error(error = %Req.TransportError{}),
     do: "network error (" <> Exception.message(error) <> ")"
 

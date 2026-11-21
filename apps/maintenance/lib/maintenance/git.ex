@@ -78,7 +78,8 @@ defmodule Maintenance.Git do
     response =
       System.cmd(
         "git",
-        ~w(ls-remote #{Project.git_url(project)} refs/heads/#{Project.config!(project, :main_branch)})
+        ~w(ls-remote #{Project.git_url(project)} refs/heads/#{Project.config!(project, :main_branch)}),
+        stderr_to_stdout: true
       )
 
     case response do
@@ -109,7 +110,7 @@ defmodule Maintenance.Git do
   Cache git `project` repository. Changes left in the checkout by an earlier run are
   discarded, so they cannot end up in the next commit.
   """
-  @spec cache_repo(Maintenance.project()) :: {:ok, %{cached?: boolean}}
+  @spec cache_repo(Maintenance.project()) :: {:ok, %{cached?: boolean}} | {:error, term()}
   def cache_repo(project) when is_project(project) do
     project
     |> path()
@@ -122,26 +123,17 @@ defmodule Maintenance.Git do
       end
 
     case get_last_cached_commit_id(project) do
-      {:ok, ^last_commit_id} ->
+      {:ok, ^last_commit_id} when last_commit_id != nil ->
         Util.info("Git repository already cached [#{project}]")
-        :ok = discard_changes(project)
-        {:ok, %{cached?: true}}
+        with :ok <- discard_changes(project), do: {:ok, %{cached?: true}}
 
       {:ok, commit_id} when commit_id != nil ->
         Util.info("Updating Git repository [#{project}]")
-        # Update repository
-        :ok = update_repo(project)
-        {:ok, %{cached?: false}}
+        with :ok <- update_repo(project), do: {:ok, %{cached?: false}}
 
-      {:ok, nil} ->
+      _no_checkout ->
         Util.info("Creating Git repository [#{project}]")
-        :ok = create_repo(project)
-        {:ok, %{cached?: false}}
-
-      {:error, _error} ->
-        Util.info("Creating Git repository [#{project}]")
-        :ok = create_repo(project)
-        {:ok, %{cached?: false}}
+        with :ok <- create_repo(project), do: {:ok, %{cached?: false}}
     end
   end
 
@@ -150,15 +142,11 @@ defmodule Maintenance.Git do
   """
   @spec create_repo(Maintenance.project()) :: :ok | {:error, term()}
   def create_repo(project) when is_project(project) do
-    with {_response_string, 0} <-
-           System.cmd(
-             "git",
-             ~w(clone #{Project.git_url(project)} --branch #{Project.config!(project, :main_branch)} #{path(project)})
-           ),
-         :ok <- config(project) do
-      :ok
-    else
-      error -> {:error, error}
+    main_branch = Project.config!(project, :main_branch)
+    args = ~w(clone --quiet #{Project.git_url(project)} --branch #{main_branch} #{path(project)})
+
+    with :ok <- git(args, path(project)) do
+      config(project)
     end
   end
 
@@ -178,17 +166,27 @@ defmodule Maintenance.Git do
     main_branch = Project.config!(project, :main_branch)
 
     with :ok <- config(project),
-         # {_response_string, 0} <- System.cmd("git", ~w(pull #{remote} HEAD -f), cd: git_path),
-         {_response_string, 0} <- System.cmd("git", ~w(reset --hard HEAD), cd: git_path),
-         {_response_string, 0} <- System.cmd("git", ~w(clean -f -d), cd: git_path),
-         {_response_string, 0} <-
-           System.cmd("git", ~w(fetch #{remote} #{main_branch} -f), cd: git_path),
-         {_response_string, 0} <- System.cmd("git", ~w(checkout -f #{main_branch}), cd: git_path),
-         {_response_string, 0} <- System.cmd("git", ~w(reset --hard FETCH_HEAD), cd: git_path) do
-      :ok
-    else
-      error ->
-        {:error, error}
+         :ok <- git(~w(reset --hard HEAD), git_path),
+         :ok <- git(~w(clean -f -d), git_path),
+         :ok <- git(~w(fetch --quiet #{remote} #{main_branch} -f), git_path),
+         :ok <- git(~w(checkout --quiet -f #{main_branch}), git_path) do
+      git(~w(reset --quiet --hard FETCH_HEAD), git_path)
+    end
+  end
+
+  # Runs Git in `dir`. A failure names the command and the first line of what Git said.
+  defp git(args, dir) do
+    case System.cmd("git", args, cd: dir, stderr_to_stdout: true) do
+      {_output, 0} ->
+        :ok
+
+      {output, _status} ->
+        [first_line | _rest] =
+          output
+          |> String.trim()
+          |> String.split("\n")
+
+        {:error, {:git_failed, Enum.join(["git" | args], " "), first_line}}
     end
   end
 
@@ -392,21 +390,21 @@ defmodule Maintenance.Git do
     end
   end
 
-  @spec setup_repo(Maintenance.project(), branch()) :: {:ok, branch(), branch()}
+  @spec setup_repo(Maintenance.project(), branch()) ::
+          {:ok, branch(), branch()} | {:error, term()}
   def setup_repo(project, new_branch) when is_project(project) and is_binary(new_branch) do
-    {:ok, _map} = cache_repo(project)
-
     main_branch = Project.config!(project, :main_branch)
 
-    :ok = checkout(project, main_branch)
-    {:ok, previous_branch} = get_branch(project)
-
-    if branch_exists?(project, new_branch) do
-      :ok = delete_branch(project, new_branch)
+    with {:ok, _map} <- cache_repo(project),
+         :ok <- checkout(project, main_branch),
+         {:ok, previous_branch} <- get_branch(project),
+         :ok <- delete_branch_if_exists(project, new_branch),
+         :ok <- checkout_new_branch(project, new_branch) do
+      {:ok, new_branch, previous_branch}
     end
+  end
 
-    :ok = checkout_new_branch(project, new_branch)
-
-    {:ok, new_branch, previous_branch}
+  defp delete_branch_if_exists(project, branch) do
+    if branch_exists?(project, branch), do: delete_branch(project, branch), else: :ok
   end
 end
