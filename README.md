@@ -45,6 +45,33 @@ export GITHUB_ACCESS_TOKEN=your-token
 `GITHUB_ACCOUNT` names the fork that pull requests are opened in, and each command
 takes `--fork OWNER` to use another one.
 
+#### Create the token
+
+The token is used only by `mix maintenance.publish`, which pushes to the fork and
+opens the pull request inside it. Nothing is written to the upstream projects, so the
+token needs access to your forks only.
+
+1. Fork [elixir-lang/elixir](https://github.com/elixir-lang/elixir) and
+   [erlang/otp](https://github.com/erlang/otp) into the account of `GITHUB_ACCOUNT`.
+2. On GitHub, go to **Settings** > **Developer settings** > **Personal access tokens** >
+   **Fine-grained tokens**, and select **Generate new token**.
+3. Set **Resource owner** to the account that holds the forks.
+4. Under **Repository access**, select **Only select repositories**, and select the
+   `elixir` and `otp` forks.
+5. Under **Repository permissions**, set:
+   - **Contents**: Read and write. Publishing pushes the branch and fast-forwards the
+     fork's main branch.
+   - **Pull requests**: Read and write. Publishing opens the pull request.
+   - **Workflows**: Read and write. The upstream commits that the fork's main branch is
+     fast-forwarded to often change files in `.github/workflows`, and GitHub rejects
+     those pushes without this permission.
+
+   GitHub adds **Metadata**: Read-only by itself.
+6. Generate the token, and put it in `.env` as `GITHUB_ACCESS_TOKEN`.
+
+A classic token works too, with the `repo` and `workflow` scopes, but it can reach every
+repository of the account.
+
 To commit with another identity than your global one, add it to `.env` too:
 
 ```sh
