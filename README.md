@@ -6,7 +6,7 @@ or any other project using a Git repository (only GitHub is initially supported)
 
 ## Feature Requests & Bug reports
 
-Feel free to open up an issue <https://github.com/eksperimental/beam_meta/issues> with your request/report.
+Feel free to open up an issue <https://github.com/eksperimental/maintenance/issues> with your request/report.
 
 ## Usage
 
