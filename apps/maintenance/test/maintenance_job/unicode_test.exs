@@ -39,6 +39,50 @@ defmodule MaintenanceJob.UnicodeTest do
     end
   end
 
+  describe "get_latest_unicode_version/0" do
+    test "reads the version from the redirect of the latest version page" do
+      Req.Test.stub(Unicode, fn conn ->
+        assert conn.host == "www.unicode.org"
+        assert conn.request_path == "/versions/latest/"
+
+        conn
+        |> Plug.Conn.put_resp_header(
+          "location",
+          "https://www.unicode.org/versions/Unicode17.0.0/"
+        )
+        |> Plug.Conn.send_resp(302, "")
+      end)
+
+      assert Unicode.get_latest_unicode_version() == {:ok, Version.parse!("17.0.0")}
+    end
+  end
+
+  describe "get_current_unicode_version/1" do
+    test "reads the version of Elixir from String.Unicode" do
+      Req.Test.stub(Unicode, fn conn ->
+        assert conn.host == "raw.githubusercontent.com"
+        assert conn.request_path == "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex"
+
+        Plug.Conn.send_resp(conn, 200, "  def version, do: {16, 0, 0}\n")
+      end)
+
+      assert Unicode.get_current_unicode_version(:elixir) == {:ok, Version.parse!("16.0.0")}
+    end
+
+    test "reads the version of OTP from the generator of the unicode module" do
+      Req.Test.stub(Unicode, fn conn ->
+        assert conn.host == "raw.githubusercontent.com"
+
+        assert conn.request_path ==
+                 "/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
+
+        Plug.Conn.send_resp(conn, 200, ~S|io:put_chars(Fd, "spec_version() -> {16,0}.\n"),|)
+      end)
+
+      assert Unicode.get_current_unicode_version(:otp) == {:ok, Version.parse!("16.0.0")}
+    end
+  end
+
   describe "update_vendor_info/2" do
     test "points the OTP vendor info at the new Unicode version" do
       vendor_info = """

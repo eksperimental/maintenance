@@ -469,7 +469,9 @@ defmodule MaintenanceJob.Unicode do
   @spec get_latest_unicode_version() :: {:ok, Version.t()} | :error
   def get_latest_unicode_version() do
     result =
-      case Req.request(url: "https://www.unicode.org/versions/latest/", redirect: false) do
+      case Req.request(
+             [url: "https://www.unicode.org/versions/latest/", redirect: false] ++ @req_options
+           ) do
         {:ok,
          %Req.Response{
            headers: %{
@@ -569,7 +571,7 @@ defmodule MaintenanceJob.Unicode do
   def get_current_unicode_version(:elixir) do
     result =
       "https://raw.githubusercontent.com/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex"
-      |> Req.get!()
+      |> Req.get!(@req_options)
       |> then(&Regex.named_captures(~r/def version, do: {(?<version>\d+, \d+, \d+)}/, &1.body))
 
     case result do
@@ -591,7 +593,7 @@ defmodule MaintenanceJob.Unicode do
   def get_current_unicode_version(:otp) do
     result =
       "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
-      |> Req.get!()
+      |> Req.get!(@req_options)
       |> then(&Regex.named_captures(@otp_regex_gen_unicode_version, &1.body))
 
     case result do

@@ -10,4 +10,10 @@ System.put_env(%{
   "GIT_COMMITTER_EMAIL" => "test@example.com"
 })
 
+# A request that no Req.Test stub answers fails the test instead of reaching the network.
+Req.default_options(
+  plug: fn conn -> raise "unstubbed request to #{conn.host}#{conn.request_path}" end,
+  retry: false
+)
+
 ExUnit.start()
