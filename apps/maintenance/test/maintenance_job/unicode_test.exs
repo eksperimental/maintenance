@@ -39,6 +39,34 @@ defmodule MaintenanceJob.UnicodeTest do
     end
   end
 
+  describe "update_vendor_info/2" do
+    test "points the OTP vendor info at the new Unicode version" do
+      vendor_info = """
+      [
+        {
+          "ID": "stdlib-unicode",
+          "downloadLocation": "https://www.unicode.org/Public/16.0.0/ucd/",
+          "homepage": "https://www.unicode.org/",
+          "versionInfo": "16.0.0",
+          "path": ["./lib/stdlib/uc_spec/CaseFolding.txt"]
+        }
+      ]
+      """
+
+      assert Unicode.update_vendor_info(vendor_info, Version.parse!("17.0.0")) == """
+             [
+               {
+                 "ID": "stdlib-unicode",
+                 "downloadLocation": "https://www.unicode.org/Public/17.0.0/ucd/",
+                 "homepage": "https://www.unicode.org/",
+                 "versionInfo": "17.0.0",
+                 "path": ["./lib/stdlib/uc_spec/CaseFolding.txt"]
+               }
+             ]
+             """
+    end
+  end
+
   # get!/2 writes the download to the cache in a background task.
   defp await_cache_writes() do
     for pid <- Task.Supervisor.children(Maintenance.TaskSupervisor) do

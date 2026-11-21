@@ -334,6 +334,18 @@ defmodule MaintenanceJob.Unicode do
       File.write(readme_update_path, string_readme_update)
     end
 
+    # lib/stdlib/uc_spec/vendor.info
+    fn_task_vendor_info = fn ->
+      vendor_info_path = Path.join([unicode_spec_dir, "vendor.info"])
+
+      vendor_info =
+        vendor_info_path
+        |> File.read!()
+        |> update_vendor_info(version)
+
+      File.write(vendor_info_path, vendor_info)
+    end
+
     # lib/stdlib/uc_spec/gen_unicode_mod.escript
     fn_task_gen_unicode = fn ->
       gen_unicode_path = Path.join([unicode_spec_dir, "gen_unicode_mod.escript"])
@@ -353,11 +365,26 @@ defmodule MaintenanceJob.Unicode do
     # gen_unicode_mod.escript reads the files written above and its own
     # spec_version(), so it must run only after every other task has finished.
     fn_task_update_tests = fn ->
-      Enum.each([fn_task_readme_update, fn_task_gen_unicode | fn_tasks], & &1.())
+      Enum.each(
+        [fn_task_readme_update, fn_task_vendor_info, fn_task_gen_unicode | fn_tasks],
+        & &1.()
+      )
+
       update_otp_tests(unicode_spec_dir)
     end
 
     run_tasks(project, [fn_task_update_tests], version)
+  end
+
+  @doc false
+  @spec update_vendor_info(String.t(), version) :: String.t()
+  def update_vendor_info(vendor_info, version) when is_version(version) do
+    vendor_info
+    |> String.replace(
+      ~r{("downloadLocation": "https://www\.unicode\.org/Public/)[^/"]+(/ucd/")},
+      "\\g{1}#{version}\\g{2}"
+    )
+    |> String.replace(~r{("versionInfo": ")[^"]+(")}, "\\g{1}#{version}\\g{2}")
   end
 
   defp update_otp_tests(unicode_spec_dir) do
