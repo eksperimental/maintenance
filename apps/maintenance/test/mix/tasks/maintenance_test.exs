@@ -85,18 +85,7 @@ defmodule Mix.Tasks.MaintenanceTest do
 
     test "prints every job, names the repository missing from the fork, then fails" do
       stub_unicode_versions()
-
-      Req.Test.stub(Github, fn conn ->
-        case conn.request_path do
-          "/repos/some-account/otp/pulls" ->
-            conn
-            |> Plug.Conn.put_status(404)
-            |> Req.Test.json(%{"message" => "Not Found"})
-
-          _other ->
-            Req.Test.json(conn, [])
-        end
-      end)
+      stub_missing_repo("some-account/otp")
 
       error = assert_raise Mix.Error, fn -> Status.run([]) end
 
@@ -171,6 +160,18 @@ defmodule Mix.Tasks.MaintenanceTest do
       Run.run(["elixir", "fake_job"])
 
       assert printed() == "elixir fake_job is up to date. Nothing to do.\n"
+    end
+
+    test "names the repository missing from the fork" do
+      stub_missing_repo("some-account/elixir")
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "fake_job"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir fake_job: " <>
+                 "some-account/elixir not found on GitHub"
+
+      refute_received {:prepare, _project}
     end
 
     test "shows where the commit is and what to run next", %{tmp_dir: _tmp_dir} do
@@ -273,6 +274,18 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert refs(context.fork) == %{"main" => ahead}
     end
 
+    test "names the repository missing from the fork and pushes nothing", %{tmp_dir: tmp_dir} do
+      context = fork_checkout!(tmp_dir, :elixir, "some-account", @branch)
+      stub_missing_repo("some-account/elixir")
+
+      error = assert_raise Mix.Error, fn -> Publish.run(["elixir", "fake_job"]) end
+
+      assert error.message ==
+               "Could not publish elixir fake_job: some-account/elixir not found on GitHub"
+
+      assert refs(context.fork) == %{}
+    end
+
     test "tells how to set the token when it is missing" do
       previous = System.get_env("GITHUB_ACCESS_TOKEN")
       on_exit(fn -> System.put_env("GITHUB_ACCESS_TOKEN", previous) end)
@@ -313,6 +326,18 @@ defmodule Mix.Tasks.MaintenanceTest do
 
         _other ->
           Req.Test.json(conn, [])
+      end
+    end)
+  end
+
+  defp stub_missing_repo(owner_and_repo) do
+    Req.Test.stub(Github, fn conn ->
+      if conn.request_path == "/repos/#{owner_and_repo}/pulls" do
+        conn
+        |> Plug.Conn.put_status(404)
+        |> Req.Test.json(%{"message" => "Not Found"})
+      else
+        Req.Test.json(conn, [])
       end
     end)
   end

@@ -63,7 +63,9 @@ defmodule Mix.Tasks.Maintenance.Run do
         """)
 
       {:error, reason} ->
-        Mix.raise("Could not build the commit for #{project} #{job}: #{inspect(reason)}")
+        Mix.raise(
+          "Could not build the commit for #{project} #{job}: #{CLI.describe_error(reason)}"
+        )
     end
   end
 

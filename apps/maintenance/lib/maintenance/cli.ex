@@ -1,6 +1,7 @@
 defmodule Maintenance.CLI do
   @moduledoc """
-  Turns the arguments of the Mix tasks into projects, jobs and forks.
+  Turns the arguments of the Mix tasks into projects, jobs and forks, and their errors into
+  text.
 
   The project and job names come from the user, so they are matched against the strings of
   the configured atoms and never converted to atoms. A mismatch raises `Mix.Error` and lists the valid values.
@@ -41,6 +42,13 @@ defmodule Maintenance.CLI do
 
   def fork!(""), do: Mix.raise("--fork needs the GitHub account that holds the fork")
   def fork!(owner), do: owner
+
+  @doc """
+  Describes the error `reason` of a task for the user.
+  """
+  @spec describe_error(term()) :: String.t()
+  def describe_error({:not_found, repo}), do: repo <> " not found on GitHub"
+  def describe_error(reason), do: inspect(reason)
 
   defp find!(atoms, name, singular, plural) do
     Enum.find(atoms, &(Atom.to_string(&1) == name)) ||

@@ -102,7 +102,8 @@ command reads from unicode.org and GitHub. It needs no token.
 
 A job that cannot be checked shows the error on its line, and the command exits with an
 error after it prints every line. For example, `error: <account>/otp not found on GitHub`
-means that the account has no fork of `erlang/otp`.
+means that the account has no fork of `erlang/otp`. `run` and `publish` stop with the same
+message.
 
 ### 2. Build the commit
 

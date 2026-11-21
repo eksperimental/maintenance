@@ -88,12 +88,9 @@ defmodule Mix.Tasks.Maintenance.Status do
           {"#{info.current} -> #{info.latest}", "due (closed PR: #{url})"}
 
         {:error, reason} ->
-          {"", "error: " <> describe(reason)}
+          {"", "error: " <> CLI.describe_error(reason)}
       end
 
     [Atom.to_string(project), Atom.to_string(job), versions, state]
   end
-
-  defp describe({:not_found, repo}), do: repo <> " not found on GitHub"
-  defp describe(reason), do: inspect(reason)
 end

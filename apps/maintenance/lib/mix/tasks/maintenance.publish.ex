@@ -63,7 +63,7 @@ defmodule Mix.Tasks.Maintenance.Publish do
         |> Mix.raise()
 
       {:error, reason} ->
-        Mix.raise("Could not publish #{project} #{job}: #{inspect(reason)}")
+        Mix.raise("Could not publish #{project} #{job}: #{CLI.describe_error(reason)}")
     end
   end
 
