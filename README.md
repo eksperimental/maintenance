@@ -106,6 +106,12 @@ means that the account has no fork of `erlang/otp`. `run` and `publish` stop wit
 message. GitHub answers 60 requests an hour without a token, and the line says when
 that limit resets once it is used up.
 
+A `unicode` job says which Unicode version it could not find. `error: current Unicode
+version not found in <url>` means that the project's source file at `<url>` has no version
+where Maintenance looks for it, so the file has likely changed. `error: latest Unicode
+version not found at https://www.unicode.org/versions/latest/` means that the page could not
+be read or did not redirect to the page of a Unicode version.
+
 ### 2. Build the commit
 
 ```sh

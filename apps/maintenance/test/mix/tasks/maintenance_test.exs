@@ -121,6 +121,37 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert printed() == "elixir  fake_job    error: network error (connection refused)\n"
     end
 
+    test "names the file the current Unicode version could not be read from" do
+      stub_unicode_versions(%{
+        "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" =>
+          &Plug.Conn.send_resp(&1, 200, "defmodule String.Unicode do\n")
+      })
+
+      error = assert_raise Mix.Error, fn -> Status.run(["elixir", "unicode"]) end
+
+      assert printed() ==
+               "elixir  unicode    error: current Unicode version not found in " <>
+                 "https://raw.githubusercontent.com/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex\n"
+
+      assert error.message == "Could not check elixir unicode"
+    end
+
+    test "says when unicode.org does not name the latest Unicode version" do
+      stub_unicode_versions(%{
+        "/versions/latest/" => fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("location", "https://www.unicode.org/versions/")
+          |> Plug.Conn.send_resp(302, "")
+        end
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["otp", "unicode"]) end
+
+      assert printed() ==
+               "otp  unicode    error: latest Unicode version not found at " <>
+                 "https://www.unicode.org/versions/latest/\n"
+    end
+
     test "asks for --fork or GITHUB_ACCOUNT when neither is given" do
       put_env("GITHUB_ACCOUNT", nil)
 
@@ -195,6 +226,19 @@ defmodule Mix.Tasks.MaintenanceTest do
                  "some-account/elixir not found on GitHub"
 
       refute_received {:prepare, _project}
+    end
+
+    test "names the file the current Unicode version could not be read from" do
+      stub_unicode_versions(%{
+        "/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript" =>
+          &Plug.Conn.send_resp(&1, 200, "spec_version() -> unknown.\n")
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: current Unicode version not found in " <>
+                 "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
     end
 
     test "shows where the commit is and what to run next", %{tmp_dir: _tmp_dir} do
@@ -365,9 +409,14 @@ defmodule Mix.Tasks.MaintenanceTest do
     end)
   end
 
-  defp stub_unicode_versions() do
+  # Answers the Unicode lookups with 16.0.0 as the current version and 17.0.0 as the latest.
+  # `overrides` answers the request paths it holds instead.
+  defp stub_unicode_versions(overrides \\ %{}) do
     Req.Test.stub(Unicode, fn conn ->
-      case conn.request_path do
+      case Map.get(overrides, conn.request_path, conn.request_path) do
+        respond when is_function(respond, 1) ->
+          respond.(conn)
+
         "/versions/latest/" ->
           conn
           |> Plug.Conn.put_resp_header(

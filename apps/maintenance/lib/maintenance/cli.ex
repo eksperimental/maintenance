@@ -52,6 +52,12 @@ defmodule Maintenance.CLI do
   def describe_error({:rate_limited, reset_at}),
     do: "GitHub rate limit reached, try again after " <> Calendar.strftime(reset_at, "%H:%M UTC")
 
+  def describe_error({:current_unicode_version_not_found, url}),
+    do: "current Unicode version not found in " <> url
+
+  def describe_error({:latest_unicode_version_not_found, url}),
+    do: "latest Unicode version not found at " <> url
+
   def describe_error(error = %Req.TransportError{}),
     do: "network error (" <> Exception.message(error) <> ")"
 

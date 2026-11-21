@@ -13,6 +13,7 @@ defmodule MaintenanceJob.Unicode do
 
   @job :unicode
   @req_options Application.compile_env(:maintenance, :unicode_req_options, [])
+  @latest_version_url "https://www.unicode.org/versions/latest/"
   @otp_regex_gen_unicode_version ~r/(spec_version\(\)\s+->\s+\{)((?<major>\d+),(?<minor>\d+)(,(?<patch>\d+))?)(\}\.\\n)/
 
   #############################
@@ -46,10 +47,16 @@ defmodule MaintenanceJob.Unicode do
 
   @doc """
   Compares the Unicode version of `project` with the latest one published by unicode.org.
+
+  When either version cannot be found, the error names it and the URL it was looked up in,
+  as returned by `get_current_unicode_version/1` and `get_latest_unicode_version/0`.
   """
   @impl MaintenanceJob
   @spec status(Maintenance.project()) ::
-          {:due | :up_to_date, MaintenanceJob.info()} | {:error, :unicode_version_not_found}
+          {:due | :up_to_date, MaintenanceJob.info()}
+          | {:error,
+             {:current_unicode_version_not_found | :latest_unicode_version_not_found,
+              url :: String.t()}}
   def status(project) when is_project(project) do
     with {:ok, current} <- get_current_unicode_version(project),
          {:ok, latest} <- get_latest_unicode_version() do
@@ -60,8 +67,6 @@ defmodule MaintenanceJob.Unicode do
       else
         {:up_to_date, info}
       end
-    else
-      :error -> {:error, :unicode_version_not_found}
     end
   end
 
@@ -465,13 +470,15 @@ defmodule MaintenanceJob.Unicode do
 
   @doc """
   Returns the latest Unicode version available.
+
+  The version is read from the redirect of #{@latest_version_url}. When the request fails or
+  the redirect names no version, the error is `{:latest_unicode_version_not_found, url}`.
   """
-  @spec get_latest_unicode_version() :: {:ok, Version.t()} | :error
+  @spec get_latest_unicode_version() ::
+          {:ok, Version.t()} | {:error, {:latest_unicode_version_not_found, String.t()}}
   def get_latest_unicode_version() do
     result =
-      case Req.request(
-             [url: "https://www.unicode.org/versions/latest/", redirect: false] ++ @req_options
-           ) do
+      case Req.request([url: @latest_version_url, redirect: false] ++ @req_options) do
         {:ok,
          %Req.Response{
            headers: %{
@@ -494,7 +501,7 @@ defmodule MaintenanceJob.Unicode do
         {:ok, to_version(version)}
 
       _other ->
-        :error
+        {:error, {:latest_unicode_version_not_found, @latest_version_url}}
     end
   end
 
@@ -566,11 +573,17 @@ defmodule MaintenanceJob.Unicode do
 
   @doc """
   Gets the current Unicode version for the given `project`.
+
+  The version is read from a source file of the project on GitHub. When the file holds no
+  version where it is expected, the error is `{:current_unicode_version_not_found, url}`,
+  with the URL of the file.
   """
-  @spec get_current_unicode_version(Maintenance.project()) :: {:ok, version} | :error
-  def get_current_unicode_version(:elixir) do
+  @spec get_current_unicode_version(Maintenance.project()) ::
+          {:ok, version} | {:error, {:current_unicode_version_not_found, String.t()}}
+  def get_current_unicode_version(project = :elixir) do
     result =
-      "https://raw.githubusercontent.com/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex"
+      project
+      |> current_version_url()
       |> Req.get!(@req_options)
       |> then(&Regex.named_captures(~r/def version, do: {(?<version>\d+, \d+, \d+)}/, &1.body))
 
@@ -586,13 +599,14 @@ defmodule MaintenanceJob.Unicode do
         {:ok, version}
 
       nil ->
-        :error
+        {:error, {:current_unicode_version_not_found, current_version_url(project)}}
     end
   end
 
-  def get_current_unicode_version(:otp) do
+  def get_current_unicode_version(project = :otp) do
     result =
-      "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
+      project
+      |> current_version_url()
       |> Req.get!(@req_options)
       |> then(&Regex.named_captures(@otp_regex_gen_unicode_version, &1.body))
 
@@ -614,9 +628,16 @@ defmodule MaintenanceJob.Unicode do
         {:ok, version}
 
       nil ->
-        :error
+        {:error, {:current_unicode_version_not_found, current_version_url(project)}}
     end
   end
+
+  defp current_version_url(:elixir),
+    do: "https://raw.githubusercontent.com/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex"
+
+  defp current_version_url(:otp),
+    do:
+      "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
 
   #############################
   # Cache
