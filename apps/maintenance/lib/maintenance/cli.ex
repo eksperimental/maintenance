@@ -28,10 +28,17 @@ defmodule Maintenance.CLI do
   end
 
   @doc """
-  Returns the account given as `--fork`, or `Maintenance.author_github_account/0` without one.
+  Returns the account given as `--fork`, or the one in `GITHUB_ACCOUNT` without it.
   """
   @spec fork!(String.t() | nil) :: Maintenance.fork()
-  def fork!(nil), do: Maintenance.author_github_account()
+  def fork!(nil) do
+    Maintenance.github_account() ||
+      Mix.raise(
+        "Pass --fork OWNER, or add `export GITHUB_ACCOUNT=<your account>` to .env " <>
+          "and run `source .env`."
+      )
+  end
+
   def fork!(""), do: Mix.raise("--fork needs the GitHub account that holds the fork")
   def fork!(owner), do: owner
 

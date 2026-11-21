@@ -12,7 +12,7 @@ defmodule Mix.Tasks.MaintenanceTest do
   @moduletag :tmp_dir
 
   @branch "fake_job_1"
-  @pull_request_url "https://github.com/eksperimental/elixir/pull/3"
+  @pull_request_url "https://github.com/some-account/elixir/pull/3"
 
   setup do
     shell = Mix.shell()
@@ -37,7 +37,7 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert output =~ "mix maintenance.publish PROJECT JOB"
       assert output =~ ~r/^  elixir  .*unicode/m
       assert output =~ ~r/^  otp    .*unicode/m
-      assert output =~ "Pull requests are opened inside the fork of eksperimental,"
+      assert output =~ "Pull requests are opened inside the fork of some-account (GITHUB_ACCOUNT)"
       assert output =~ "--fork OWNER"
     end
   end
@@ -49,8 +49,8 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert printed() == "elixir  fake_job  0.0.1 -> 1.0.0  due\n"
     end
 
-    test "prints the URL of the pull request open on the configured account's fork" do
-      stub_pull_request("eksperimental")
+    test "prints the URL of the pull request open on the fork of GITHUB_ACCOUNT" do
+      stub_pull_request("some-account")
 
       Status.run(["elixir", "fake_job"])
 
@@ -71,6 +71,14 @@ defmodule Mix.Tasks.MaintenanceTest do
       Status.run(["elixir", "fake_job"])
 
       assert printed() == "elixir  fake_job  0.0.1  up to date\n"
+    end
+
+    test "asks for --fork or GITHUB_ACCOUNT when neither is given" do
+      put_env("GITHUB_ACCOUNT", nil)
+
+      error = assert_raise Mix.Error, fn -> Status.run(["elixir", "fake_job"]) end
+
+      assert error.message =~ "Pass --fork OWNER, or add `export GITHUB_ACCOUNT="
     end
 
     test "rejects an unknown project and lists the projects" do
@@ -106,6 +114,21 @@ defmodule Mix.Tasks.MaintenanceTest do
       end
     end
 
+    test "stops before building when Git does not know who the runner is" do
+      for name <-
+            ~w(GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL EMAIL),
+          do: put_env(name, nil)
+
+      put_env("GIT_CONFIG_GLOBAL", "/dev/null")
+      put_env("GIT_CONFIG_NOSYSTEM", "1")
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "fake_job"]) end
+
+      assert error.message =~ "Git does not know who you are"
+      assert error.message =~ ~s(git config --global user.email "you@example.com")
+      refute_received {:prepare, _project}
+    end
+
     test "says there is nothing to do when the job is up to date" do
       set_status({:up_to_date, info()})
 
@@ -129,10 +152,10 @@ defmodule Mix.Tasks.MaintenanceTest do
       Run.run(["elixir", "fake_job"])
 
       output = printed()
-      assert output =~ "Committed #{@branch} in #{local}"
       assert output =~ ~r/1 file changed/
       assert output =~ "git -C #{local} show --stat #{@branch}"
-      assert output =~ "open the pull request in the fork of eksperimental:"
+      assert output =~ "Committed #{@branch} as Test <test@example.com> in #{local}"
+      assert output =~ "open the pull request in the fork of some-account:"
       assert output =~ ~r/^  mix maintenance\.publish elixir fake_job$/m
     end
   end
@@ -195,6 +218,16 @@ defmodule Mix.Tasks.MaintenanceTest do
       0 -> output
     end
   end
+
+  # Sets the variable, or deletes it for nil, until the test ends.
+  defp put_env(name, value) do
+    previous = System.get_env(name)
+    on_exit(fn -> restore_env(name, previous) end)
+    restore_env(name, value)
+  end
+
+  defp restore_env(name, nil), do: System.delete_env(name)
+  defp restore_env(name, value), do: System.put_env(name, value)
 
   defp stub_pull_request(fork) do
     Req.Test.stub(Github, fn conn ->

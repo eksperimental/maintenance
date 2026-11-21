@@ -7,7 +7,11 @@ defmodule Mix.Tasks.Maintenance.Run do
   It refreshes the checkout under `~/maintenance_data/cache`, writes the files and commits
   them on a new branch. Nothing is pushed. It can be run again: it starts from the
   upstream branch each time. If a pull request for the branch exists on the fork of OWNER,
-  it prints its URL and changes nothing. OWNER defaults to `author_github_account`.
+  it prints its URL and changes nothing. OWNER defaults to `GITHUB_ACCOUNT`.
+
+  The commit is authored with your own Git identity, from `git config user.name` and
+  `user.email` or the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables. It stops if Git
+  does not know who you are.
 
   Inspect the commit, then run `mix maintenance.publish` to open the pull request.
   """
@@ -37,9 +41,10 @@ defmodule Mix.Tasks.Maintenance.Run do
 
       {:committed, %{branch: branch, path: path}} ->
         {:ok, stat} = Git.diff_stat(project, branch)
+        {:ok, author} = Git.commit_author(project, branch)
 
         Mix.shell().info("""
-        Committed #{branch} in #{path}
+        Committed #{branch} as #{author} in #{path}
 
         #{stat}
 
@@ -48,6 +53,13 @@ defmodule Mix.Tasks.Maintenance.Run do
 
         Push it and open the pull request in the fork of #{fork}:
           mix maintenance.publish #{project} #{job}#{fork_option(options)}
+        """)
+
+      {:error, :missing_git_identity} ->
+        Mix.raise("""
+        Git does not know who you are, so there is nobody to commit as. Run:
+          git config --global user.name "Your Name"
+          git config --global user.email "you@example.com"\
         """)
 
       {:error, reason} ->

@@ -14,17 +14,12 @@ defmodule Maintenance.Git do
   @spec config(Maintenance.project()) ::
           :ok | {:error, {Collectable.t(), exit_status :: non_neg_integer()}}
   def config(project) when is_project(project) do
-    author_name = Project.config(project, :author_name) || Maintenance.author_name()
-    author_email = Project.config(project, :author_email) || Maintenance.author_email()
-
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
     with {_response_string, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
-         _response_string <-
-           System.cmd("git", ~w(config user.name #{author_name}), cd: repo_path),
-         _response_string <-
-           System.cmd("git", ~w(config user.email #{author_email}), cd: repo_path),
+         :ok <- unset_local(repo_path, "user.name"),
+         :ok <- unset_local(repo_path, "user.email"),
          _response_string <-
            System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
          _response_string <- System.cmd("git", ~w(config fetch.fsckobjects true), cd: repo_path),
@@ -33,6 +28,42 @@ defmodule Maintenance.Git do
          _response_string <- System.cmd("git", ~w(config receive.fsckobjects true), cd: repo_path) do
       :ok
     else
+      error -> {:error, error}
+    end
+  end
+
+  # Older versions wrote an identity into the checkout. Commits use the runner's own one.
+  defp unset_local(repo_path, key) do
+    case System.cmd("git", ["config", "--local", "--unset-all", key], cd: repo_path) do
+      {_response_string, status} when status in [0, 5] -> :ok
+      error -> {:error, error}
+    end
+  end
+
+  @doc """
+  Returns whether Git knows who the runner is, from its config or the `GIT_AUTHOR_*` and
+  `GIT_COMMITTER_*` variables. Git is not allowed to make one up from the user and host names.
+  """
+  @spec identity_set?() :: boolean()
+  def identity_set?() do
+    Enum.all?(~w(GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT), fn variable ->
+      {_output, status} =
+        System.cmd("git", ["-c", "user.useConfigOnly=true", "var", variable],
+          cd: System.tmp_dir!(),
+          stderr_to_stdout: true
+        )
+
+      status == 0
+    end)
+  end
+
+  @doc """
+  Returns the author of the last commit of `branch`, as `Name <email>`.
+  """
+  @spec commit_author(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
+  def commit_author(project, branch) when is_project(project) and is_binary(branch) do
+    case System.cmd("git", ["log", "-1", "--format=%an <%ae>", branch, "--"], cd: path(project)) do
+      {author, 0} -> {:ok, String.trim(author)}
       error -> {:error, error}
     end
   end
@@ -198,7 +229,17 @@ defmodule Maintenance.Git do
     with git_path <- path(project),
          {_response_string, 0} <- System.cmd("git", ~w(add -- .), cd: git_path),
          {_response_string, 0} <-
-           System.cmd("git", ["-c", "commit.gpgsign=false", "commit", "-m", message],
+           System.cmd(
+             "git",
+             [
+               "-c",
+               "commit.gpgsign=false",
+               "-c",
+               "user.useConfigOnly=true",
+               "commit",
+               "-m",
+               message
+             ],
              cd: git_path
            ) do
       :ok

@@ -33,6 +33,25 @@ defmodule Maintenance.GitTest do
     %{local: local, fork: fork, stale: stale, main: main, feature: feature}
   end
 
+  describe "config/1" do
+    test "removes the identity that older versions wrote into the checkout", context do
+      git!(context.local, ~w(config --local user.name Maintenance))
+      git!(context.local, ~w(config --local --add user.name Maintenance))
+      git!(context.local, ~w(config --local user.email old@example.com))
+
+      assert Git.config(@project) == :ok
+
+      for key <- ~w(user.name user.email) do
+        assert {_output, 1} =
+                 System.cmd("git", ["config", "--local", "--get-all", key], cd: context.local)
+      end
+    end
+
+    test "succeeds when the checkout has no identity of its own" do
+      assert Git.config(@project) == :ok
+    end
+  end
+
   describe "push/2" do
     test "fast-forwards the fork's main branch along with the current branch", context do
       git!(context.local, ["push", "--quiet", context.fork, "#{context.stale}:refs/heads/main"])

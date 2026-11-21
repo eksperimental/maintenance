@@ -43,20 +43,22 @@ defmodule Maintenance do
     Path.join(data_dir(), "cache")
   end
 
-  @doc false
-  @spec author_email() :: String.t()
-  def author_email(), do: Application.fetch_env!(@app_name, :author_email)
+  @doc """
+  Returns the GitHub account in `GITHUB_ACCOUNT`, whose fork is used when no `--fork` is given.
+  """
+  @spec github_account() :: String.t() | nil
+  def github_account() do
+    case System.get_env("GITHUB_ACCOUNT") do
+      account when account in [nil, ""] -> nil
+      account -> account
+    end
+  end
 
-  @spec author_github_account() :: String.t()
-  def author_github_account(), do: Application.fetch_env!(@app_name, :author_github_account)
-
-  @spec author_name() :: String.t()
-  def author_name(), do: Application.fetch_env!(@app_name, :author_name)
-
+  # GitHub reads the token and ignores the user name, so any fixed one works.
   @doc false
   @spec auth_url(String.t()) :: String.t()
   def auth_url("https://" <> rest) do
-    "https://" <> author_github_account() <> ":" <> github_access_token!() <> "@" <> rest
+    "https://x-access-token:" <> github_access_token!() <> "@" <> rest
   end
 
   @doc false
@@ -147,7 +149,7 @@ defmodule Maintenance do
           :up_to_date
           | {:pr_exists, url :: String.t()}
           | {:committed, %{branch: String.t(), path: Path.t()}}
-          | {:error, term()}
+          | {:error, :missing_git_identity | term()}
   def run(project, job, fork) when is_project(project) and is_job(job) and is_binary(fork) do
     case status(project, job, fork) do
       {:up_to_date, _info} ->
@@ -160,7 +162,8 @@ defmodule Maintenance do
         error
 
       {:due, _info} ->
-        with {:ok, :committed, branch} <- job_module(job).prepare(project) do
+        with :ok <- ensure_git_identity(),
+             {:ok, :committed, branch} <- job_module(job).prepare(project) do
           {:committed, %{branch: branch, path: Git.path(project)}}
         end
     end
@@ -199,6 +202,10 @@ defmodule Maintenance do
 
   defp ensure_token() do
     if github_access_token(), do: :ok, else: {:error, :missing_token}
+  end
+
+  defp ensure_git_identity() do
+    if Git.identity_set?(), do: :ok, else: {:error, :missing_git_identity}
   end
 
   defp ensure_committed(project, branch) do

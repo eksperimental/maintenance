@@ -7,9 +7,8 @@ defmodule Mix.Tasks.Maintenance.Publish do
 
   The pull request is opened inside the fork of OWNER, from the new branch into the fork's
   main branch. It is never opened in the upstream project, such as `elixir-lang/elixir` or
-  `erlang/otp`. OWNER defaults to `author_github_account` in `config/config.exs`, the
-  account that owns `GITHUB_ACCESS_TOKEN`. Any other OWNER must have a fork the token can
-  push to.
+  `erlang/otp`. OWNER defaults to `GITHUB_ACCOUNT`, usually the account that owns
+  `GITHUB_ACCESS_TOKEN`. Any other OWNER must have a fork the token can push to.
 
   The pull request is titled with the subject of the commit. If a pull request for the
   branch already exists on the fork, it prints its URL and pushes nothing.

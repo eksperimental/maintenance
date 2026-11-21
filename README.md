@@ -24,6 +24,27 @@ mix maintenance.run PROJECT JOB          # build the commit locally
 mix maintenance.publish PROJECT JOB      # push it and open the pull request
 ```
 
+### Before you start
+
+Nothing about you is stored in this repository. The commits are authored with your own
+Git identity, and `mix maintenance.run` stops if Git does not have one:
+
+```sh
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+Put your GitHub account and token in `.env`, which Git ignores, and run `source .env`
+in your terminal:
+
+```sh
+export GITHUB_ACCOUNT=your-account
+export GITHUB_ACCESS_TOKEN=your-token
+```
+
+`GITHUB_ACCOUNT` names the fork that pull requests are opened in, and each command
+takes `--fork OWNER` to use another one.
+
 ### 1. See what is due
 
 ```sh
@@ -52,8 +73,8 @@ it starts from the upstream branch each time.
 
 ### 3. Publish it
 
-Publishing is the only step that needs a GitHub token. Store `GITHUB_ACCESS_TOKEN` in
-`.env` and run `source .env` in your terminal.
+Publishing is the only step that needs a GitHub token. It is in `.env`, from
+[Before you start](#before-you-start).
 
 ```sh
 mix maintenance.publish otp unicode
@@ -61,9 +82,7 @@ mix maintenance.publish otp unicode
 
 Pull requests are opened inside a fork, never in the upstream project
 (`elixir-lang/elixir` or `erlang/otp`), from the new branch into the fork's main branch.
-The upstream projects and your GitHub account are configured in `config/config.exs`.
-Set `author_github_account` to the account that owns `GITHUB_ACCESS_TOKEN`. Its fork is
-used by default.
+The fork of `GITHUB_ACCOUNT` is used by default.
 
 To use the fork of another account the token can push to, such as an organization, pass
 `--fork OWNER` to `status`, `run` and `publish`. `status` and `run` look for an open

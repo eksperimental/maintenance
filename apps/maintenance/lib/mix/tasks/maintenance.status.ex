@@ -5,7 +5,7 @@ defmodule Mix.Tasks.Maintenance.Status do
       mix maintenance.status [PROJECT [JOB]] [--fork OWNER]
 
   A job is up to date, due, or due with a pull request already open on the fork of OWNER.
-  OWNER defaults to `author_github_account` in `config/config.exs`.
+  OWNER defaults to `GITHUB_ACCOUNT`.
   It reads from unicode.org and GitHub, and does not touch the Git checkouts. It works
   without `GITHUB_ACCESS_TOKEN`.
   """

@@ -24,9 +24,22 @@ defmodule Mix.Tasks.Maintenance do
     Projects and their jobs:
     #{projects_and_jobs()}
 
-    Pull requests are opened inside the fork of #{Maintenance.author_github_account()},
-    never in the upstream project. Each command takes --fork OWNER to use another fork.\
+    #{fork_help(Maintenance.github_account())}\
     """)
+  end
+
+  defp fork_help(nil) do
+    """
+    Pull requests are opened inside a fork, never in the upstream project. GITHUB_ACCOUNT
+    is not set, so pass --fork OWNER, or add `export GITHUB_ACCOUNT=<your account>` to .env.\
+    """
+  end
+
+  defp fork_help(account) do
+    """
+    Pull requests are opened inside the fork of #{account} (GITHUB_ACCOUNT), never in the
+    upstream project. Each command takes --fork OWNER to use another fork.\
+    """
   end
 
   defp projects_and_jobs() do

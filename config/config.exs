@@ -20,14 +20,10 @@ config :maintenance, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-# Pull requests are opened inside a fork, never in the upstream project.
-# `author_github_account` owns GITHUB_ACCESS_TOKEN and its fork is the default one.
-# Pass --fork OWNER to use the fork of another account the token can push to.
+# Only the upstream projects are configured here. Whoever runs the app commits with their
+# own Git identity and opens pull requests in the fork of GITHUB_ACCOUNT (or --fork OWNER).
 config :maintenance,
   git_repo_url: "https://github.com/eksperimental/maintenance",
-  author_github_account: "eksperimental",
-  author_name: "Maintenance App",
-  author_email: "eksperimental@tutamail.com",
   project_configs: %{
     elixir: %{
       repo: "elixir",
@@ -37,9 +33,7 @@ config :maintenance,
     otp: %{
       repo: "otp",
       main_branch: "master",
-      owner: "erlang",
-      author_name: "Eksperimental",
-      author_email: "eksperimental@tutamail.com"
+      owner: "erlang"
     }
   }
 
