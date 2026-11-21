@@ -241,6 +241,38 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert printed() == "elixir fake_job is up to date. Nothing to do.\n"
     end
 
+    test "explains how to sync the fork when its main branch has commits upstream lacks",
+         %{tmp_dir: tmp_dir} do
+      context = fork_checkout!(tmp_dir, :elixir, "some-account", @branch)
+
+      ahead =
+        git!(context.local, [
+          "commit-tree",
+          "#{context.main}^{tree}",
+          "-p",
+          context.main,
+          "-m",
+          "ahead"
+        ])
+
+      git!(context.local, ["push", "--quiet", context.fork, "#{ahead}:refs/heads/main"])
+
+      Req.Test.stub(Github, fn
+        %{method: "GET"} = conn -> Req.Test.json(conn, [])
+        %{method: "POST"} -> flunk("a pull request was opened")
+      end)
+
+      error = assert_raise Mix.Error, fn -> Publish.run(["elixir", "fake_job"]) end
+
+      assert error.message =~
+               "some-account/elixir has commits that elixir-lang/elixir does not have"
+
+      assert error.message =~ "Sync fork"
+      assert error.message =~ "Discard commits"
+      assert error.message =~ "mix maintenance.publish elixir fake_job"
+      assert refs(context.fork) == %{"main" => ahead}
+    end
+
     test "tells how to set the token when it is missing" do
       previous = System.get_env("GITHUB_ACCESS_TOKEN")
       on_exit(fn -> System.put_env("GITHUB_ACCESS_TOKEN", previous) end)

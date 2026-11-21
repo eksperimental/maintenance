@@ -94,7 +94,7 @@ defmodule Maintenance.GitTest do
 
       git!(context.local, ["push", "--quiet", context.fork, "#{diverged}:refs/heads/main"])
 
-      assert {:error, _reason} = Git.push(@project, @remote_url)
+      assert Git.push(@project, @remote_url) == {:error, :fork_main_diverged}
 
       assert refs(context.fork) == %{"main" => diverged}
     end

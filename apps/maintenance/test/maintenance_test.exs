@@ -85,27 +85,7 @@ defmodule MaintenanceTest do
     setup :set_job_status
 
     setup %{tmp_dir: tmp_dir} do
-      local = Git.path(@project)
-      File.rm_rf!(local)
-      File.mkdir_p!(local)
-      on_exit(fn -> File.rm_rf!(local) end)
-
-      git!(local, ~w(init --quiet --initial-branch main))
-      main = commit!(local, "main")
-      git!(local, ~w(checkout --quiet -b #{@branch}))
-      tip = commit!(local, "Update Fake to version 1\n\nWhy it changed.")
-      git!(local, ~w(checkout --quiet main))
-
-      fork = Path.join(tmp_dir, "fork.git")
-      git!(tmp_dir, ["init", "--quiet", "--bare", fork])
-
-      # Send the fork's URL to the bare repository, and every other URL nowhere.
-      fork_url = Maintenance.Project.fork_url(@project, @fork)
-      auth_url = Maintenance.auth_url(fork_url)
-      git!(local, ["config", "url.file://#{fork}.insteadOf", auth_url])
-      git!(local, ["config", "url.file:///nonexistent/.insteadOf", "https://"])
-
-      %{local: local, fork: fork, main: main, tip: tip}
+      fork_checkout!(tmp_dir, @project, @fork, @branch)
     end
 
     test "pushes the existing commit unchanged and opens a pull request titled with its subject",

@@ -185,7 +185,7 @@ defmodule Maintenance do
           :up_to_date
           | {:opened, url :: String.t()}
           | {:pr_exists, url :: String.t()}
-          | {:error, :missing_token | :branch_missing | term()}
+          | {:error, :missing_token | :branch_missing | :fork_main_diverged | term()}
   def publish(project, job, fork) when is_project(project) and is_job(job) and is_binary(fork) do
     %{repo: repo, main_branch: main_branch} = Project.config!(project)
 

@@ -14,6 +14,10 @@ defmodule Mix.Tasks.Maintenance.Publish do
   branch already exists on the fork, it prints its URL and pushes nothing. It pushes nothing
   either when the job is up to date.
 
+  The fork's main branch is fast-forwarded in the same push. If it has commits the upstream
+  project does not have, nothing is pushed, and the command tells how to discard them on
+  GitHub.
+
   This is the only command that needs `GITHUB_ACCESS_TOKEN`: put it in `.env` and run
   `source .env`.
   """
@@ -23,6 +27,7 @@ defmodule Mix.Tasks.Maintenance.Publish do
   use Mix.Task
 
   alias Maintenance.CLI
+  alias Maintenance.Project
 
   @usage "mix maintenance.publish PROJECT JOB [--fork OWNER]"
 
@@ -52,8 +57,24 @@ defmodule Mix.Tasks.Maintenance.Publish do
             "Run `mix maintenance.run #{project} #{job}` first."
         )
 
+      {:error, :fork_main_diverged} ->
+        project
+        |> fork_main_diverged_message(fork, args)
+        |> Mix.raise()
+
       {:error, reason} ->
         Mix.raise("Could not publish #{project} #{job}: #{inspect(reason)}")
     end
+  end
+
+  defp fork_main_diverged_message(project, fork, args) do
+    %{owner: owner, repo: repo, main_branch: main_branch} = Project.config!(project)
+
+    """
+    The #{main_branch} branch of #{fork}/#{repo} has commits that #{owner}/#{repo} does not \
+    have, so nothing was pushed. To discard them, open https://github.com/#{fork}/#{repo}, \
+    click Sync fork, then Discard commits. Then run \
+    `mix maintenance.publish #{Enum.join(args, " ")}` again.\
+    """
   end
 end

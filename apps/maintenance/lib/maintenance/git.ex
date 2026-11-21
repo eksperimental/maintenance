@@ -344,20 +344,27 @@ defmodule Maintenance.Git do
   The main branch is pushed so the pull request base on the fork is up to date
   and the pull request only shows the new commits. It is only fast-forwarded,
   and the push is atomic, so nothing is pushed if the fork's main branch has
-  diverged.
+  commits of its own. That error is `:fork_main_diverged`.
   """
-  @spec push(Maintenance.project(), String.t()) :: :ok | {:error, term()}
+  @spec push(Maintenance.project(), String.t()) :: :ok | {:error, :fork_main_diverged | term()}
   def push(project, remote_url) when is_project(project) and is_binary(remote_url) do
     auth_url = Maintenance.auth_url(remote_url)
     main_branch = Project.config!(project, :main_branch)
     refspecs = ["+HEAD", "refs/heads/#{main_branch}:refs/heads/#{main_branch}"]
 
-    case System.cmd("git", ["push", "--atomic", auth_url | refspecs],
+    case System.cmd("git", ["push", "--porcelain", "--atomic", auth_url | refspecs],
            cd: path(project),
            stderr_to_stdout: true
          ) do
-      {_response_string, 0} -> :ok
-      error -> {:error, error}
+      {_response_string, 0} ->
+        :ok
+
+      {response_string, _status} = error ->
+        main_rejected = "!\trefs/heads/#{main_branch}:refs/heads/#{main_branch}\t[rejected]"
+
+        if String.contains?(response_string, main_rejected),
+          do: {:error, :fork_main_diverged},
+          else: {:error, error}
     end
   end
 

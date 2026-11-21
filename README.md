@@ -143,7 +143,8 @@ pushes nothing.
 Each publish also fast-forwards the fork's main branch to the upstream commit
 the job started from, so the pull request shows only the new commits. If the
 fork's main branch has commits of its own, nothing is pushed and no pull
-request is opened.
+request is opened. To discard those commits, open the fork on GitHub, click
+**Sync fork**, then **Discard commits**. Then run `mix maintenance.publish` again.
 
 ## Contact
 

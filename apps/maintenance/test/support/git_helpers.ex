@@ -12,6 +12,35 @@ defmodule Maintenance.GitHelpers do
     git!(dir, ~w(rev-parse HEAD))
   end
 
+  @doc """
+  Builds the checkout of `project` with `branch` one commit ahead of main, and a bare
+  repository that stands in for the fork of `owner`.
+  """
+  @spec fork_checkout!(Path.t(), Maintenance.project(), String.t(), String.t()) :: map()
+  def fork_checkout!(tmp_dir, project, owner, branch) do
+    local = Maintenance.Git.path(project)
+    File.rm_rf!(local)
+    File.mkdir_p!(local)
+    ExUnit.Callbacks.on_exit(fn -> File.rm_rf!(local) end)
+
+    git!(local, ~w(init --quiet --initial-branch main))
+    main = commit!(local, "main")
+    git!(local, ~w(checkout --quiet -b #{branch}))
+    tip = commit!(local, "Update Fake to version 1\n\nWhy it changed.")
+    git!(local, ~w(checkout --quiet main))
+
+    fork = Path.join(tmp_dir, "fork.git")
+    git!(tmp_dir, ["init", "--quiet", "--bare", fork])
+
+    # Send the fork's URL to the bare repository, and every other URL nowhere.
+    fork_url = Maintenance.Project.fork_url(project, owner)
+    auth_url = Maintenance.auth_url(fork_url)
+    git!(local, ["config", "url.file://#{fork}.insteadOf", auth_url])
+    git!(local, ["config", "url.file:///nonexistent/.insteadOf", "https://"])
+
+    %{local: local, fork: fork, main: main, tip: tip}
+  end
+
   @spec refs(Path.t()) :: %{String.t() => String.t()}
   def refs(repo) do
     repo
