@@ -12,7 +12,7 @@ defmodule Mix.Tasks.MaintenanceTest do
   @moduletag :tmp_dir
 
   @branch "fake_job_1"
-  @pull_request_url "https://github.com/maintenance-beam/elixir/pull/3"
+  @pull_request_url "https://github.com/eksperimental/elixir/pull/3"
 
   setup do
     shell = Mix.shell()
@@ -28,17 +28,17 @@ defmodule Mix.Tasks.MaintenanceTest do
   end
 
   describe "mix maintenance" do
-    test "lists the commands, the projects with their jobs, and the forks" do
+    test "lists the commands, the projects with their jobs, and the default fork" do
       Mix.Tasks.Maintenance.run([])
 
       output = printed()
       assert output =~ "mix maintenance.status [PROJECT [JOB]]"
       assert output =~ "mix maintenance.run PROJECT JOB"
-      assert output =~ "mix maintenance.publish PROJECT JOB --fork FORK"
+      assert output =~ "mix maintenance.publish PROJECT JOB"
       assert output =~ ~r/^  elixir  .*unicode/m
       assert output =~ ~r/^  otp    .*unicode/m
-      assert output =~ ~r/^  maintenance-beam      For real pull requests\./m
-      assert output =~ ~r/^  maintenance-beam-app  For trial runs\./m
+      assert output =~ "Pull requests are opened inside the fork of eksperimental,"
+      assert output =~ "--fork OWNER"
     end
   end
 
@@ -49,12 +49,18 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert printed() == "elixir  fake_job  0.0.1 -> 1.0.0  due\n"
     end
 
-    test "prints the URL of the pull request that is open" do
-      Req.Test.stub(Github, fn conn ->
-        Req.Test.json(conn, [%{"html_url" => @pull_request_url}])
-      end)
+    test "prints the URL of the pull request open on the configured account's fork" do
+      stub_pull_request("eksperimental")
 
       Status.run(["elixir", "fake_job"])
+
+      assert printed() == "elixir  fake_job  0.0.1 -> 1.0.0  PR open: #{@pull_request_url}\n"
+    end
+
+    test "looks for the pull request on the fork given as --fork" do
+      stub_pull_request("someone")
+
+      Status.run(["elixir", "fake_job", "--fork", "someone"])
 
       assert printed() == "elixir  fake_job  0.0.1 -> 1.0.0  PR open: #{@pull_request_url}\n"
     end
@@ -126,41 +132,31 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert output =~ "Committed #{@branch} in #{local}"
       assert output =~ ~r/1 file changed/
       assert output =~ "git -C #{local} show --stat #{@branch}"
-      assert output =~ "mix maintenance.publish elixir fake_job --fork FORK"
-      assert output =~ "Forks for --fork."
+      assert output =~ "open the pull request in the fork of eksperimental:"
+      assert output =~ ~r/^  mix maintenance\.publish elixir fake_job$/m
     end
   end
 
   describe "mix maintenance.publish" do
-    test "requires --fork and lists the forks" do
-      error = assert_raise Mix.Error, fn -> Publish.run(["elixir", "fake_job"]) end
-
-      assert error.message =~ ~r/\AMissing --fork\.\n\nForks for --fork\./
-      assert error.message =~ ~r/^  maintenance-beam      For real pull requests\./m
-      assert error.message =~ ~r/^  maintenance-beam-app  For trial runs\./m
+    test "rejects an empty --fork" do
+      assert_raise Mix.Error, ~r/--fork needs the GitHub account/, fn ->
+        Publish.run(["elixir", "fake_job", "--fork", ""])
+      end
     end
 
-    test "rejects a fork that is not configured" do
-      error =
-        assert_raise Mix.Error, fn -> Publish.run(["elixir", "fake_job", "--fork", "someone"]) end
-
-      assert error.message =~ ~r/\AUnknown fork "someone"\.\n\nForks for --fork\./
-      assert error.message =~ ~r/^  maintenance-beam-app  For trial runs\./m
-    end
-
-    test "rejects an unknown project and an unknown job before the fork" do
+    test "rejects an unknown project and an unknown job" do
       assert_raise Mix.Error, ~r/Unknown project "nope"/, fn ->
-        Publish.run(["nope", "unicode", "--fork", "maintenance-beam"])
+        Publish.run(["nope", "unicode"])
       end
 
       assert_raise Mix.Error, ~r/Unknown job for elixir "nope"/, fn ->
-        Publish.run(["elixir", "nope", "--fork", "maintenance-beam"])
+        Publish.run(["elixir", "nope"])
       end
     end
 
     test "rejects an option it does not know" do
       assert_raise OptionParser.ParseError, fn ->
-        Publish.run(["elixir", "fake_job", "--fork", "maintenance-beam", "--force"])
+        Publish.run(["elixir", "fake_job", "--force"])
       end
     end
 
@@ -170,7 +166,7 @@ defmodule Mix.Tasks.MaintenanceTest do
 
       error =
         assert_raise Mix.Error, fn ->
-          Publish.run(["elixir", "fake_job", "--fork", "maintenance-beam"])
+          Publish.run(["elixir", "fake_job"])
         end
 
       assert error.message ==
@@ -185,7 +181,7 @@ defmodule Mix.Tasks.MaintenanceTest do
 
       error =
         assert_raise Mix.Error, fn ->
-          Publish.run(["elixir", "fake_job", "--fork", "maintenance-beam"])
+          Publish.run(["elixir", "fake_job"])
         end
 
       assert error.message =~ "GITHUB_ACCESS_TOKEN is not set"
@@ -198,6 +194,18 @@ defmodule Mix.Tasks.MaintenanceTest do
     after
       0 -> output
     end
+  end
+
+  defp stub_pull_request(fork) do
+    Req.Test.stub(Github, fn conn ->
+      case String.split(conn.request_path, "/") do
+        ["", "repos", ^fork, "elixir", "pulls"] ->
+          Req.Test.json(conn, [%{"html_url" => @pull_request_url}])
+
+        _other ->
+          Req.Test.json(conn, [])
+      end
+    end)
   end
 
   defp set_status(status) do

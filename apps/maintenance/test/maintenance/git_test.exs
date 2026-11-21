@@ -8,7 +8,7 @@ defmodule Maintenance.GitTest do
   @moduletag :tmp_dir
 
   @project :elixir
-  @remote_url Project.fork_url(@project, "maintenance-beam-app")
+  @remote_url Project.fork_url(@project, "some-account")
 
   setup %{tmp_dir: tmp_dir} do
     local = Git.path(@project)

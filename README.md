@@ -13,10 +13,10 @@ Feel free to open up an issue <https://github.com/eksperimental/beam_meta/issues
 Maintenance is for occasional use: run it when a new version of Unicode comes out, which is about once a year. It is three Mix commands, run from the root of this repository.
 
 ```sh
-mix maintenance                                    # the commands, projects, jobs and forks
-mix maintenance.status [PROJECT [JOB]]             # which jobs are due
-mix maintenance.run PROJECT JOB                    # build the commit locally
-mix maintenance.publish PROJECT JOB --fork FORK    # push it and open the pull request
+mix maintenance                          # the commands, projects, jobs and the default fork
+mix maintenance.status [PROJECT [JOB]]   # which jobs are due
+mix maintenance.run PROJECT JOB          # build the commit locally
+mix maintenance.publish PROJECT JOB      # push it and open the pull request
 ```
 
 ### 1. See what is due
@@ -51,22 +51,18 @@ Publishing is the only step that needs a GitHub token. Store `GITHUB_ACCESS_TOKE
 `.env` and run `source .env` in your terminal.
 
 ```sh
-mix maintenance.publish otp unicode --fork maintenance-beam
+mix maintenance.publish otp unicode
 ```
 
-`--fork` is required. It names the GitHub account that holds the fork the pull request
-is opened in. Pull requests are opened inside a fork, never in the upstream project
+Pull requests are opened inside a fork, never in the upstream project
 (`elixir-lang/elixir` or `erlang/otp`), from the new branch into the fork's main branch.
-The forks are configured in `config/config.exs`:
+The upstream projects and your GitHub account are configured in `config/config.exs`.
+Set `author_github_account` to the account that owns `GITHUB_ACCESS_TOKEN`. Its fork is
+used by default.
 
-| Fork                   | Use it for          | What it is                                              |
-| ---------------------- | ------------------- | ------------------------------------------------------- |
-| `maintenance-beam`     | Real pull requests  | The organization that holds the forks of the projects.  |
-| `maintenance-beam-app` | Trial runs          | The account that owns the token, with forks of its own. |
-
-To try the whole flow first, publish to `maintenance-beam-app`, check the pull request,
-and then publish the same commit to `maintenance-beam`. `mix maintenance` and the error
-for a missing or unknown fork list the forks with what each one is for.
+To use the fork of another account the token can push to, such as an organization, pass
+`--fork OWNER` to `status`, `run` and `publish`. `status` and `run` look for an open
+pull request on that same fork.
 
 The title of the pull request is the subject of the commit.
 

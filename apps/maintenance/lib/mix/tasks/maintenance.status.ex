@@ -2,9 +2,10 @@ defmodule Mix.Tasks.Maintenance.Status do
   @moduledoc """
   Shows which maintenance jobs are due, one line for each project and job.
 
-      mix maintenance.status [PROJECT [JOB]]
+      mix maintenance.status [PROJECT [JOB]] [--fork OWNER]
 
-  A job is up to date, due, or due with a pull request already open on one of the forks.
+  A job is up to date, due, or due with a pull request already open on the fork of OWNER.
+  OWNER defaults to `author_github_account` in `config/config.exs`.
   It reads from unicode.org and GitHub, and does not touch the Git checkouts. It works
   without `GITHUB_ACCESS_TOKEN`.
   """
@@ -18,9 +19,10 @@ defmodule Mix.Tasks.Maintenance.Status do
   @impl Mix.Task
   def run(args) do
     Mix.Task.run("app.start")
-    {[], names} = OptionParser.parse!(args, strict: [])
+    {options, names} = OptionParser.parse!(args, strict: [fork: :string])
+    fork = CLI.fork!(options[:fork])
 
-    rows = for {project, job} <- pairs(names), do: row(project, job)
+    rows = for {project, job} <- pairs(names), do: row(project, job, fork)
     widths = Enum.zip_with(rows, &widest/1)
 
     for row <- rows do
@@ -56,11 +58,12 @@ defmodule Mix.Tasks.Maintenance.Status do
     [CLI.project_and_job!(names, "")]
   end
 
-  defp pairs(_names), do: Mix.raise("Usage: mix maintenance.status [PROJECT [JOB]]")
+  defp pairs(_names),
+    do: Mix.raise("Usage: mix maintenance.status [PROJECT [JOB]] [--fork OWNER]")
 
-  defp row(project, job) do
+  defp row(project, job, fork) do
     {versions, state} =
-      case Maintenance.status(project, job) do
+      case Maintenance.status(project, job, fork) do
         {:due, info} -> {"#{info.current} -> #{info.latest}", "due"}
         {:up_to_date, info} -> {to_string(info.current), "up to date"}
         {:pr_exists, info, url} -> {"#{info.current} -> #{info.latest}", "PR open: " <> url}

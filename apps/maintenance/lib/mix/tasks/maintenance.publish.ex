@@ -3,18 +3,13 @@ defmodule Mix.Tasks.Maintenance.Publish do
   Pushes the commit that `mix maintenance.run` built, without rebuilding it, and opens the
   pull request inside a fork.
 
-      mix maintenance.publish PROJECT JOB --fork FORK
+      mix maintenance.publish PROJECT JOB [--fork OWNER]
 
-  FORK is the GitHub account that holds the fork the pull request is opened in, from the
-  new branch into the fork's main branch. It is never opened in the upstream project, such
-  as `elixir-lang/elixir` or `erlang/otp`. The forks are configured in `config/config.exs`:
-
-    * `maintenance-beam` is for real pull requests. It is the organization that holds the
-      forks of the projects.
-    * `maintenance-beam-app` is for trial runs. It is the account that owns
-      `GITHUB_ACCESS_TOKEN`, and it has forks of its own.
-
-  `mix maintenance` lists the forks with what each one is for.
+  The pull request is opened inside the fork of OWNER, from the new branch into the fork's
+  main branch. It is never opened in the upstream project, such as `elixir-lang/elixir` or
+  `erlang/otp`. OWNER defaults to `author_github_account` in `config/config.exs`, the
+  account that owns `GITHUB_ACCESS_TOKEN`. Any other OWNER must have a fork the token can
+  push to.
 
   The pull request is titled with the subject of the commit. If a pull request for the
   branch already exists on the fork, it prints its URL and pushes nothing.
@@ -29,7 +24,7 @@ defmodule Mix.Tasks.Maintenance.Publish do
 
   alias Maintenance.CLI
 
-  @usage "mix maintenance.publish PROJECT JOB --fork FORK"
+  @usage "mix maintenance.publish PROJECT JOB [--fork OWNER]"
 
   @impl Mix.Task
   def run(args) do

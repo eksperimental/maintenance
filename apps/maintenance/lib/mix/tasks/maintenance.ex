@@ -1,7 +1,7 @@
 defmodule Mix.Tasks.Maintenance do
   @moduledoc """
-  Lists the maintenance commands, the projects and jobs they run on, and the forks that
-  pull requests can be opened in.
+  Lists the maintenance commands, the projects and jobs they run on, and the default fork
+  that pull requests are opened in.
 
       mix maintenance
   """
@@ -17,14 +17,15 @@ defmodule Mix.Tasks.Maintenance do
     Mix.shell().info("""
     Maintenance updates files in other projects and opens pull requests for the changes.
 
-      mix maintenance.status [PROJECT [JOB]]            Show which jobs are due
-      mix maintenance.run PROJECT JOB                   Build the commit locally
-      mix maintenance.publish PROJECT JOB --fork FORK   Push that commit and open the pull request
+      mix maintenance.status [PROJECT [JOB]]   Show which jobs are due
+      mix maintenance.run PROJECT JOB          Build the commit locally
+      mix maintenance.publish PROJECT JOB      Push that commit and open the pull request
 
     Projects and their jobs:
     #{projects_and_jobs()}
 
-    #{Maintenance.CLI.forks_help()}\
+    Pull requests are opened inside the fork of #{Maintenance.author_github_account()},
+    never in the upstream project. Each command takes --fork OWNER to use another fork.\
     """)
   end
 

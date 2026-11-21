@@ -3,7 +3,7 @@ defmodule Maintenance do
   Checks whether the maintenance jobs are due, builds their commits locally, and publishes
   them as pull requests, whichever job it is.
 
-  The three steps are `status/2`, `run/2` and `publish/3`. The `maintenance.status`,
+  The three steps are `status/3`, `run/3` and `publish/3`. The `maintenance.status`,
   `maintenance.run` and `maintenance.publish` Mix tasks call them.
   """
 
@@ -107,18 +107,6 @@ defmodule Maintenance do
   end
 
   @doc """
-  Lists the forks where pull requests can be opened, each with what it is for.
-  """
-  @spec fork_descriptions() :: [{fork(), description :: String.t()}]
-  def fork_descriptions(), do: Application.fetch_env!(@app_name, :forks)
-
-  @doc """
-  Lists the forks where pull requests can be opened.
-  """
-  @spec forks() :: [fork()]
-  def forks(), do: Enum.map(fork_descriptions(), &elem(&1, 0))
-
-  @doc """
   Returns the module that implements `job`.
   """
   @spec job_module(job) :: module()
@@ -128,16 +116,16 @@ defmodule Maintenance do
 
   @doc """
   Returns whether `job` is due for `project`, and, if so, whether a pull request for it exists
-  on any fork. Only the network is used.
+  on `fork`. Only the network is used.
   """
-  @spec status(project, job) ::
+  @spec status(project, job, fork) ::
           {:up_to_date | :due, MaintenanceJob.info()}
           | {:pr_exists, MaintenanceJob.info(), url :: String.t()}
           | {:error, term()}
-  def status(project, job) when is_project(project) and is_job(job) do
+  def status(project, job, fork) when is_project(project) and is_job(job) and is_binary(fork) do
     case job_module(job).status(project) do
       {:due, info} ->
-        case find_pull_request(project, info.branch) do
+        case Github.find_pull_request(fork, Project.config!(project, :repo), info.branch) do
           :none -> {:due, info}
           {:ok, url} -> {:pr_exists, info, url}
           {:error, _reason} = error -> error
@@ -152,16 +140,16 @@ defmodule Maintenance do
   end
 
   @doc """
-  Builds the commit for `job` in the cached checkout of `project`, if it is due and no fork
-  has a pull request for it yet. Nothing is pushed.
+  Builds the commit for `job` in the cached checkout of `project`, if it is due and `fork`
+  has no pull request for it yet. Nothing is pushed.
   """
-  @spec run(project, job) ::
+  @spec run(project, job, fork) ::
           :up_to_date
           | {:pr_exists, url :: String.t()}
           | {:committed, %{branch: String.t(), path: Path.t()}}
           | {:error, term()}
-  def run(project, job) when is_project(project) and is_job(job) do
-    case status(project, job) do
+  def run(project, job, fork) when is_project(project) and is_job(job) and is_binary(fork) do
+    case status(project, job, fork) do
       {:up_to_date, _info} ->
         :up_to_date
 
@@ -179,7 +167,7 @@ defmodule Maintenance do
   end
 
   @doc """
-  Pushes the commit that `run/2` left on the branch of `job`, unchanged, and opens a pull
+  Pushes the commit that `run/3` left on the branch of `job`, unchanged, and opens a pull
   request for it inside `fork`. The title is the subject of the commit.
   """
   @spec publish(project, job, fork) ::
@@ -211,17 +199,6 @@ defmodule Maintenance do
 
   defp ensure_token() do
     if github_access_token(), do: :ok, else: {:error, :missing_token}
-  end
-
-  defp find_pull_request(project, branch) do
-    repo = Project.config!(project, :repo)
-
-    Enum.reduce_while(forks(), :none, fn fork, :none ->
-      case Github.find_pull_request(fork, repo, branch) do
-        :none -> {:cont, :none}
-        found -> {:halt, found}
-      end
-    end)
   end
 
   defp ensure_committed(project, branch) do

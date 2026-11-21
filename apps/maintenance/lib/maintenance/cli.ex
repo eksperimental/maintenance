@@ -2,8 +2,8 @@ defmodule Maintenance.CLI do
   @moduledoc """
   Turns the arguments of the Mix tasks into projects, jobs and forks.
 
-  The arguments come from the user, so they are matched against the strings of the configured
-  atoms and never converted to atoms. A mismatch raises `Mix.Error` and lists the valid values.
+  The project and job names come from the user, so they are matched against the strings of
+  the configured atoms and never converted to atoms. A mismatch raises `Mix.Error` and lists the valid values.
   """
 
   @doc """
@@ -27,39 +27,13 @@ defmodule Maintenance.CLI do
     find!(Maintenance.jobs(project), name, "job for #{project}", "jobs for #{project}")
   end
 
-  @spec fork!(String.t() | nil) :: Maintenance.fork()
-  def fork!(nil), do: Mix.raise("Missing --fork.\n\n" <> forks_help())
-
-  def fork!(name) do
-    if name in Maintenance.forks() do
-      name
-    else
-      Mix.raise("Unknown fork #{inspect(name)}.\n\n" <> forks_help())
-    end
-  end
-
   @doc """
-  Describes the forks that `--fork` accepts, one on each line.
+  Returns the account given as `--fork`, or `Maintenance.author_github_account/0` without one.
   """
-  @spec forks_help() :: String.t()
-  def forks_help() do
-    forks = Maintenance.fork_descriptions()
-
-    width =
-      forks
-      |> Enum.map(fn {fork, _description} -> String.length(fork) end)
-      |> Enum.max()
-
-    lines =
-      Enum.map_join(forks, "\n", fn {fork, description} ->
-        "  " <> String.pad_trailing(fork, width) <> "  " <> description
-      end)
-
-    """
-    Forks for --fork. The pull request is opened inside the fork, never in the upstream project.
-    #{lines}\
-    """
-  end
+  @spec fork!(String.t() | nil) :: Maintenance.fork()
+  def fork!(nil), do: Maintenance.author_github_account()
+  def fork!(""), do: Mix.raise("--fork needs the GitHub account that holds the fork")
+  def fork!(owner), do: owner
 
   defp find!(atoms, name, singular, plural) do
     Enum.find(atoms, &(Atom.to_string(&1) == name)) ||

@@ -10,8 +10,8 @@ defmodule MaintenanceTest do
 
   @project :elixir
   @job :fake_job
-  @fork "maintenance-beam-app"
-  @other_fork "maintenance-beam"
+  @fork "some-account"
+  @other_fork "other-account"
   @branch "fake_job_1"
   @pull_request_url "https://github.com/#{@fork}/elixir/pull/3"
 
@@ -37,19 +37,19 @@ defmodule MaintenanceTest do
   describe "run/2" do
     setup :set_job_status
 
-    test "builds the commit when the job is due and no fork has a pull request" do
-      stub_pull_requests(%{})
+    test "builds the commit when the job is due and the fork has no pull request" do
+      stub_pull_requests(%{@other_fork => @pull_request_url})
 
-      assert Maintenance.run(@project, @job) ==
+      assert Maintenance.run(@project, @job, @fork) ==
                {:committed, %{branch: @branch, path: Git.path(@project)}}
 
       assert_received {:prepare, @project}
     end
 
-    test "does not build anything when a fork already has a pull request" do
-      stub_pull_requests(%{@other_fork => @pull_request_url})
+    test "does not build anything when the fork already has a pull request" do
+      stub_pull_requests(%{@fork => @pull_request_url})
 
-      assert Maintenance.run(@project, @job) == {:pr_exists, @pull_request_url}
+      assert Maintenance.run(@project, @job, @fork) == {:pr_exists, @pull_request_url}
 
       refute_received {:prepare, _project}
     end
@@ -58,7 +58,7 @@ defmodule MaintenanceTest do
       Req.Test.stub(Github, fn _conn -> flunk("GitHub was asked") end)
       set_status({:up_to_date, info()})
 
-      assert Maintenance.run(@project, @job) == :up_to_date
+      assert Maintenance.run(@project, @job, @fork) == :up_to_date
 
       refute_received {:prepare, _project}
     end
@@ -66,7 +66,7 @@ defmodule MaintenanceTest do
     test "returns the error when the job cannot tell its status" do
       set_status({:error, :unicode_version_not_found})
 
-      assert Maintenance.run(@project, @job) == {:error, :unicode_version_not_found}
+      assert Maintenance.run(@project, @job, @fork) == {:error, :unicode_version_not_found}
 
       refute_received {:prepare, _project}
     end
