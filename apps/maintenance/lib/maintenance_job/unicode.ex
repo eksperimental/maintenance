@@ -56,7 +56,8 @@ defmodule MaintenanceJob.Unicode do
           {:due | :up_to_date, MaintenanceJob.info()}
           | {:error,
              {:current_unicode_version_not_found | :latest_unicode_version_not_found,
-              url :: String.t()}}
+              url :: String.t()}
+             | Exception.t()}
   def status(project) when is_project(project) do
     with {:ok, current} <- get_current_unicode_version(project),
          {:ok, latest} <- get_latest_unicode_version() do
@@ -471,37 +472,34 @@ defmodule MaintenanceJob.Unicode do
   @doc """
   Returns the latest Unicode version available.
 
-  The version is read from the redirect of #{@latest_version_url}. When the request fails or
-  the redirect names no version, the error is `{:latest_unicode_version_not_found, url}`.
+  The version is read from the redirect of #{@latest_version_url}. When the page does not
+  redirect to the page of a Unicode version, the error is
+  `{:latest_unicode_version_not_found, url}`. When the page cannot be fetched, the error is
+  the exception of the request, such as `Req.TransportError`.
   """
   @spec get_latest_unicode_version() ::
-          {:ok, Version.t()} | {:error, {:latest_unicode_version_not_found, String.t()}}
+          {:ok, Version.t()}
+          | {:error, {:latest_unicode_version_not_found, String.t()} | Exception.t()}
   def get_latest_unicode_version() do
-    result =
-      case Req.request([url: @latest_version_url, redirect: false] ++ @req_options) do
-        {:ok,
-         %Req.Response{
-           headers: %{
-             "location" => [redirect_url]
-           },
-           status: 302
-         }} ->
-          # "https://www.unicode.org/versions/Unicode15.1.0/"
-          Regex.named_captures(
-            ~r{https?://www.unicode.org/versions/Unicode(?<version>\d+\.\d+.\d+)/},
-            redirect_url
-          )
+    with {:ok, response} <-
+           Req.request([url: @latest_version_url, redirect: false] ++ @req_options) do
+      redirect_url =
+        case response do
+          %Req.Response{status: 302, headers: %{"location" => [redirect_url]}} -> redirect_url
+          _other -> ""
+        end
 
-        {:error, _exception} ->
-          :error
+      # "https://www.unicode.org/versions/Unicode15.1.0/"
+      case Regex.named_captures(
+             ~r{https?://www.unicode.org/versions/Unicode(?<version>\d+\.\d+.\d+)/},
+             redirect_url
+           ) do
+        %{"version" => version} ->
+          {:ok, to_version(version)}
+
+        nil ->
+          {:error, {:latest_unicode_version_not_found, @latest_version_url}}
       end
-
-    case result do
-      %{"version" => version} ->
-        {:ok, to_version(version)}
-
-      _other ->
-        {:error, {:latest_unicode_version_not_found, @latest_version_url}}
     end
   end
 
@@ -576,59 +574,62 @@ defmodule MaintenanceJob.Unicode do
 
   The version is read from a source file of the project on GitHub. When the file holds no
   version where it is expected, the error is `{:current_unicode_version_not_found, url}`,
-  with the URL of the file.
+  with the URL of the file. When the file cannot be fetched, the error is the exception of
+  the request, such as `Req.TransportError`.
   """
   @spec get_current_unicode_version(Maintenance.project()) ::
-          {:ok, version} | {:error, {:current_unicode_version_not_found, String.t()}}
+          {:ok, version}
+          | {:error, {:current_unicode_version_not_found, String.t()} | Exception.t()}
   def get_current_unicode_version(project = :elixir) do
-    result =
-      project
-      |> current_version_url()
-      |> Req.get!(@req_options)
-      |> then(&Regex.named_captures(~r/def version, do: {(?<version>\d+, \d+, \d+)}/, &1.body))
+    url = current_version_url(project)
 
-    case result do
-      %{"version" => version_string} ->
-        version =
-          version_string
-          |> String.split(",")
-          |> Enum.map_join(".", &String.trim/1)
-          |> to_version()
+    with {:ok, response} <- Req.get(url, @req_options) do
+      result =
+        Regex.named_captures(~r/def version, do: {(?<version>\d+, \d+, \d+)}/, response.body)
 
-        # {:ok, to_version("13.0.0")}
-        {:ok, version}
+      case result do
+        %{"version" => version_string} ->
+          version =
+            version_string
+            |> String.split(",")
+            |> Enum.map_join(".", &String.trim/1)
+            |> to_version()
 
-      nil ->
-        {:error, {:current_unicode_version_not_found, current_version_url(project)}}
+          # {:ok, to_version("13.0.0")}
+          {:ok, version}
+
+        nil ->
+          {:error, {:current_unicode_version_not_found, url}}
+      end
     end
   end
 
   def get_current_unicode_version(project = :otp) do
-    result =
-      project
-      |> current_version_url()
-      |> Req.get!(@req_options)
-      |> then(&Regex.named_captures(@otp_regex_gen_unicode_version, &1.body))
+    url = current_version_url(project)
 
-    case result do
-      %{"major" => major, "minor" => minor, "patch" => ""} ->
-        version =
-          [major, minor, 0]
-          |> Enum.join(".")
-          |> to_version()
+    with {:ok, response} <- Req.get(url, @req_options) do
+      result = Regex.named_captures(@otp_regex_gen_unicode_version, response.body)
 
-        {:ok, version}
+      case result do
+        %{"major" => major, "minor" => minor, "patch" => ""} ->
+          version =
+            [major, minor, 0]
+            |> Enum.join(".")
+            |> to_version()
 
-      %{"major" => major, "minor" => minor, "patch" => patch} ->
-        version =
-          [major, minor, patch]
-          |> Enum.join(".")
-          |> to_version()
+          {:ok, version}
 
-        {:ok, version}
+        %{"major" => major, "minor" => minor, "patch" => patch} ->
+          version =
+            [major, minor, patch]
+            |> Enum.join(".")
+            |> to_version()
 
-      nil ->
-        {:error, {:current_unicode_version_not_found, current_version_url(project)}}
+          {:ok, version}
+
+        nil ->
+          {:error, {:current_unicode_version_not_found, url}}
+      end
     end
   end
 

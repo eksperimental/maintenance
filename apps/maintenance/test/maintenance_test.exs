@@ -73,9 +73,9 @@ defmodule MaintenanceTest do
     end
 
     test "returns the error when the job cannot tell its status" do
-      set_status({:error, :unicode_version_not_found})
+      set_status({:error, :status_unavailable})
 
-      assert Maintenance.run(@project, @job, @fork) == {:error, :unicode_version_not_found}
+      assert Maintenance.run(@project, @job, @fork) == {:error, :status_unavailable}
 
       refute_received {:prepare, _project}
     end

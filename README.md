@@ -109,8 +109,9 @@ that limit resets once it is used up.
 A `unicode` job says which Unicode version it could not find. `error: current Unicode
 version not found in <url>` means that the project's source file at `<url>` has no version
 where Maintenance looks for it, so the file has likely changed. `error: latest Unicode
-version not found at https://www.unicode.org/versions/latest/` means that the page could not
-be read or did not redirect to the page of a Unicode version.
+version not found at https://www.unicode.org/versions/latest/` means that the page did not
+redirect to the page of a Unicode version. When the file or the page cannot be reached, the
+line says `error: network error (<reason>)` instead.
 
 ### 2. Build the commit
 

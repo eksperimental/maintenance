@@ -152,6 +152,39 @@ defmodule Mix.Tasks.MaintenanceTest do
                  "https://www.unicode.org/versions/latest/\n"
     end
 
+    test "tells when the source file of the current Unicode version cannot be reached" do
+      stub_unicode_versions(%{
+        "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" =>
+          &Req.Test.transport_error(&1, :econnrefused)
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["elixir", "unicode"]) end
+
+      assert printed() == "elixir  unicode    error: network error (connection refused)\n"
+    end
+
+    test "tells when unicode.org cannot be reached" do
+      stub_unicode_versions(%{
+        "/versions/latest/" => &Req.Test.transport_error(&1, :econnrefused)
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["otp", "unicode"]) end
+
+      assert printed() == "otp  unicode    error: network error (connection refused)\n"
+    end
+
+    test "says when unicode.org answers without redirecting to a Unicode version" do
+      stub_unicode_versions(%{
+        "/versions/latest/" => &Plug.Conn.send_resp(&1, 200, "<html></html>")
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["otp", "unicode"]) end
+
+      assert printed() ==
+               "otp  unicode    error: latest Unicode version not found at " <>
+                 "https://www.unicode.org/versions/latest/\n"
+    end
+
     test "asks for --fork or GITHUB_ACCOUNT when neither is given" do
       put_env("GITHUB_ACCOUNT", nil)
 
