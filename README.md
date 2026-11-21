@@ -45,6 +45,18 @@ export GITHUB_ACCESS_TOKEN=your-token
 `GITHUB_ACCOUNT` names the fork that pull requests are opened in, and each command
 takes `--fork OWNER` to use another one.
 
+To commit with another identity than your global one, add it to `.env` too:
+
+```sh
+export GIT_AUTHOR_NAME="Your Name"
+export GIT_AUTHOR_EMAIL="you@example.com"
+export GIT_COMMITTER_NAME="Your Name"
+export GIT_COMMITTER_EMAIL="you@example.com"
+```
+
+These variables apply to every Git command in the terminal where you ran `source .env`,
+not only to this app.
+
 ### 1. See what is due
 
 ```sh
