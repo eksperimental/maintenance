@@ -51,7 +51,9 @@ defmodule Maintenance.Umbrella.MixProject do
         "credo",
         "dialyzer",
         "docs",
+        test_in_test_env(),
 
+        # recode ends Mix when it finishes, so it must stay the last step.
         # # NOTE: Change to `"recode --no-autocorrect",` once the bug in Recode has been fixed
         "recode "
       ],
@@ -68,24 +70,22 @@ defmodule Maintenance.Umbrella.MixProject do
       all: [
         "setup",
         "prepare",
-        "check",
-        test_isolated()
+        "check"
       ]
     ]
   end
 
-  defp test_isolated() do
+  # The check alias runs in the dev environment, where `mix test` refuses to run.
+  defp test_in_test_env() do
     fn _args ->
-      env = %{"MIX_ENV" => "test"}
+      {_output, status} =
+        System.cmd("mix", ["test"],
+          env: %{"MIX_ENV" => "test"},
+          into: IO.stream(),
+          stderr_to_stdout: true
+        )
 
-      with {:"test setup", {_, 0}} <- {:"test setup", System.cmd("mix", ~w[setup], env: env)},
-           {:test, {_, 0}} <- {:test, System.cmd("mix", ~w[test], env: env)} do
-        true
-      else
-        {type, {output, _}} ->
-          IO.puts(output)
-          raise("#{type} failed.")
-      end
+      if status != 0, do: Mix.raise("mix test failed")
     end
   end
 
