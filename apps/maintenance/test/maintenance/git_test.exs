@@ -53,6 +53,25 @@ defmodule Maintenance.GitTest do
     end
   end
 
+  describe "cache_repo/1" do
+    test "discards leftover changes when the checkout already has the upstream main branch",
+         context do
+      upstream = Path.join(context.tmp_dir, "upstream.git")
+      git!(context.tmp_dir, ["init", "--quiet", "--bare", upstream])
+      git!(context.local, ["push", "--quiet", upstream, "main"])
+      redirect_url(Project.git_url(@project), "file://" <> upstream)
+
+      tracked = Path.join(context.local, "file.txt")
+      untracked = Path.join(context.local, "stray.txt")
+      File.write!(tracked, "changed")
+      File.write!(untracked, "left behind")
+
+      assert Git.cache_repo(@project) == {:ok, %{cached?: true}}
+
+      assert git!(context.local, ~w(status --porcelain)) == ""
+    end
+  end
+
   describe "push/2" do
     test "fast-forwards the fork's main branch along with the current branch", context do
       git!(context.local, ["push", "--quiet", context.fork, "#{context.stale}:refs/heads/main"])
@@ -80,4 +99,22 @@ defmodule Maintenance.GitTest do
       assert refs(context.fork) == %{"main" => diverged}
     end
   end
+
+  # Makes every git command in the test send `url` to `replacement`.
+  defp redirect_url(url, replacement) do
+    variables = %{
+      "GIT_CONFIG_COUNT" => "1",
+      "GIT_CONFIG_KEY_0" => "url.#{replacement}.insteadOf",
+      "GIT_CONFIG_VALUE_0" => url
+    }
+
+    for {name, value} <- variables do
+      previous = System.get_env(name)
+      on_exit(fn -> restore_env(name, previous) end)
+      System.put_env(name, value)
+    end
+  end
+
+  defp restore_env(name, nil), do: System.delete_env(name)
+  defp restore_env(name, value), do: System.put_env(name, value)
 end

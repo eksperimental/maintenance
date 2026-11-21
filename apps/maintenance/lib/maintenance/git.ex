@@ -106,7 +106,8 @@ defmodule Maintenance.Git do
     do: Path.join(cache_path(), to_string(project))
 
   @doc """
-  Cache git `project` repository.
+  Cache git `project` repository. Changes left in the checkout by an earlier run are
+  discarded, so they cannot end up in the next commit.
   """
   @spec cache_repo(Maintenance.project()) :: {:ok, %{cached?: boolean}}
   def cache_repo(project) when is_project(project) do
@@ -123,6 +124,7 @@ defmodule Maintenance.Git do
     case get_last_cached_commit_id(project) do
       {:ok, ^last_commit_id} ->
         Util.info("Git repository already cached [#{project}]")
+        :ok = discard_changes(project)
         {:ok, %{cached?: true}}
 
       {:ok, commit_id} when commit_id != nil ->
