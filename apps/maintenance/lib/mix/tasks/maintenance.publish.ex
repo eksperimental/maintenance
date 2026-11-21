@@ -11,7 +11,8 @@ defmodule Mix.Tasks.Maintenance.Publish do
   `GITHUB_ACCESS_TOKEN`. Any other OWNER must have a fork the token can push to.
 
   The pull request is titled with the subject of the commit. If an open pull request for the
-  branch already exists on the fork, it prints its URL and pushes nothing.
+  branch already exists on the fork, it prints its URL and pushes nothing. It pushes nothing
+  either when the job is up to date.
 
   This is the only command that needs `GITHUB_ACCESS_TOKEN`: put it in `.env` and run
   `source .env`.
@@ -35,6 +36,9 @@ defmodule Mix.Tasks.Maintenance.Publish do
     case Maintenance.publish(project, job, fork) do
       {:opened, url} ->
         Mix.shell().info("Opened #{url}")
+
+      :up_to_date ->
+        Mix.shell().info("#{project} #{job} is up to date. Nothing to do.")
 
       {:pr_exists, url} ->
         Mix.shell().info("An open pull request already exists: #{url}")

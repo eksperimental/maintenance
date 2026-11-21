@@ -206,6 +206,14 @@ defmodule Mix.Tasks.MaintenanceTest do
                  "Run `mix maintenance.run elixir fake_job` first."
     end
 
+    test "says there is nothing to do when the job is up to date" do
+      set_status({:up_to_date, info()})
+
+      Publish.run(["elixir", "fake_job"])
+
+      assert printed() == "elixir fake_job is up to date. Nothing to do.\n"
+    end
+
     test "tells how to set the token when it is missing" do
       previous = System.get_env("GITHUB_ACCESS_TOKEN")
       on_exit(fn -> System.put_env("GITHUB_ACCESS_TOKEN", previous) end)

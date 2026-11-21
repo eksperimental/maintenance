@@ -169,6 +169,15 @@ defmodule MaintenanceTest do
       assert refs(context.fork) == %{}
     end
 
+    test "pushes nothing when the job is up to date", context do
+      Req.Test.stub(Github, fn _conn -> flunk("GitHub was asked") end)
+      set_status({:up_to_date, info()})
+
+      assert Maintenance.publish(@project, @job, @fork) == :up_to_date
+
+      assert refs(context.fork) == %{}
+    end
+
     test "tells that the branch is missing when run has not built it", context do
       Req.Test.stub(Github, fn _conn -> flunk("GitHub was asked") end)
       set_status({:due, info("unicode_0.0.0")})

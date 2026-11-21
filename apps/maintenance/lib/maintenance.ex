@@ -178,17 +178,19 @@ defmodule Maintenance do
 
   @doc """
   Pushes the commit that `run/3` left on the branch of `job`, unchanged, and opens a pull
-  request for it inside `fork`. The title is the subject of the commit.
+  request for it inside `fork`. The title is the subject of the commit. Nothing is pushed
+  when the job is up to date.
   """
   @spec publish(project, job, fork) ::
-          {:opened, url :: String.t()}
+          :up_to_date
+          | {:opened, url :: String.t()}
           | {:pr_exists, url :: String.t()}
           | {:error, :missing_token | :branch_missing | term()}
   def publish(project, job, fork) when is_project(project) and is_job(job) and is_binary(fork) do
     %{repo: repo, main_branch: main_branch} = Project.config!(project)
 
     with :ok <- ensure_token(),
-         {_status, %{branch: branch}} <- job_module(job).status(project),
+         {:due, %{branch: branch}} <- job_module(job).status(project),
          :ok <- ensure_committed(project, branch),
          :ok <- ensure_no_open_pull_request(fork, repo, branch),
          :ok <- push(project, branch, fork),
@@ -202,6 +204,7 @@ defmodule Maintenance do
            }) do
       {:opened, Map.fetch!(pull_request, "html_url")}
     else
+      {:up_to_date, _info} -> :up_to_date
       {:pr_exists, _url} = pr_exists -> pr_exists
       {:error, _reason} = error -> error
     end
