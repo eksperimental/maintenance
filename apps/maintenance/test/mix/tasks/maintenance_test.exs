@@ -5,6 +5,7 @@ defmodule Mix.Tasks.MaintenanceTest do
 
   alias Maintenance.Git
   alias Maintenance.Github
+  alias MaintenanceJob.Unicode
   alias Mix.Tasks.Maintenance.Publish
   alias Mix.Tasks.Maintenance.Run
   alias Mix.Tasks.Maintenance.Status
@@ -80,6 +81,32 @@ defmodule Mix.Tasks.MaintenanceTest do
       Status.run(["elixir", "fake_job"])
 
       assert printed() == "elixir  fake_job  0.0.1  up to date\n"
+    end
+
+    test "prints every job, names the repository missing from the fork, then fails" do
+      stub_unicode_versions()
+
+      Req.Test.stub(Github, fn conn ->
+        case conn.request_path do
+          "/repos/some-account/otp/pulls" ->
+            conn
+            |> Plug.Conn.put_status(404)
+            |> Req.Test.json(%{"message" => "Not Found"})
+
+          _other ->
+            Req.Test.json(conn, [])
+        end
+      end)
+
+      error = assert_raise Mix.Error, fn -> Status.run([]) end
+
+      assert printed() == """
+             elixir  fake_job  0.0.1 -> 1.0.0    due
+             elixir  unicode   16.0.0 -> 17.0.0  due
+             otp     unicode                     error: some-account/otp not found on GitHub
+             """
+
+      assert error.message == "Could not check otp unicode"
     end
 
     test "asks for --fork or GITHUB_ACCOUNT when neither is given" do
@@ -254,6 +281,26 @@ defmodule Mix.Tasks.MaintenanceTest do
 
         _other ->
           Req.Test.json(conn, [])
+      end
+    end)
+  end
+
+  defp stub_unicode_versions() do
+    Req.Test.stub(Unicode, fn conn ->
+      case conn.request_path do
+        "/versions/latest/" ->
+          conn
+          |> Plug.Conn.put_resp_header(
+            "location",
+            "https://www.unicode.org/versions/Unicode17.0.0/"
+          )
+          |> Plug.Conn.send_resp(302, "")
+
+        "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" ->
+          Plug.Conn.send_resp(conn, 200, "  def version, do: {16, 0, 0}\n")
+
+        "/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript" ->
+          Plug.Conn.send_resp(conn, 200, ~S|io:put_chars(Fd, "spec_version() -> {16,0}.\n"),|)
       end
     end)
   end

@@ -7,6 +7,8 @@ defmodule Mix.Tasks.Maintenance.Status do
   A job is up to date, due, or due with a pull request already open on the fork of OWNER.
   A due job whose pull request was closed shows that pull request too.
   OWNER defaults to `GITHUB_ACCOUNT`.
+  A job that cannot be checked shows the error instead, and the command fails after printing
+  every line.
   It reads from unicode.org and GitHub, and does not touch the Git checkouts. It works
   without `GITHUB_ACCESS_TOKEN`.
   """
@@ -23,13 +25,21 @@ defmodule Mix.Tasks.Maintenance.Status do
     {options, names} = OptionParser.parse!(args, strict: [fork: :string])
     fork = CLI.fork!(options[:fork])
 
-    rows = for {project, job} <- pairs(names), do: row(project, job, fork)
+    results =
+      for {project, job} <- pairs(names),
+          do: {project, job, Maintenance.status(project, job, fork)}
+
+    rows = Enum.map(results, &row/1)
     widths = Enum.zip_with(rows, &widest/1)
 
     for row <- rows do
       line = format(row, widths)
       Mix.shell().info(line)
     end
+
+    failed = for {project, job, {:error, _reason}} <- results, do: "#{project} #{job}"
+
+    if failed != [], do: Mix.raise("Could not check " <> Enum.join(failed, ", "))
   end
 
   defp widest(column) do
@@ -62,9 +72,9 @@ defmodule Mix.Tasks.Maintenance.Status do
   defp pairs(_names),
     do: Mix.raise("Usage: mix maintenance.status [PROJECT [JOB]] [--fork OWNER]")
 
-  defp row(project, job, fork) do
+  defp row({project, job, status}) do
     {versions, state} =
-      case Maintenance.status(project, job, fork) do
+      case status do
         {:due, info} ->
           {"#{info.current} -> #{info.latest}", "due"}
 
@@ -78,9 +88,12 @@ defmodule Mix.Tasks.Maintenance.Status do
           {"#{info.current} -> #{info.latest}", "due (closed PR: #{url})"}
 
         {:error, reason} ->
-          Mix.raise("Could not check #{project} #{job}: #{inspect(reason)}")
+          {"", "error: " <> describe(reason)}
       end
 
     [Atom.to_string(project), Atom.to_string(job), versions, state]
   end
+
+  defp describe({:not_found, repo}), do: repo <> " not found on GitHub"
+  defp describe(reason), do: inspect(reason)
 end

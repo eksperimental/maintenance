@@ -100,6 +100,10 @@ A job is `due`, `up to date`, or due with a pull request that is already open
 the job: it shows as `due (closed PR: <url>)`, and `run` and `publish` go ahead. The
 command reads from unicode.org and GitHub. It needs no token.
 
+A job that cannot be checked shows the error on its line, and the command exits with an
+error after it prints every line. For example, `error: <account>/otp not found on GitHub`
+means that the account has no fork of `erlang/otp`.
+
 ### 2. Build the commit
 
 ```sh

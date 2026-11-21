@@ -97,6 +97,17 @@ defmodule Maintenance.GithubTest do
       assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") == :none
     end
 
+    test "names the repository when GitHub does not have it" do
+      Req.Test.stub(Github, fn conn ->
+        conn
+        |> Plug.Conn.put_status(404)
+        |> Req.Test.json(%{"message" => "Not Found"})
+      end)
+
+      assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") ==
+               {:error, {:not_found, "owner/repo"}}
+    end
+
     test "returns the status and body as the error when GitHub rejects the request" do
       Req.Test.stub(Github, fn conn ->
         conn

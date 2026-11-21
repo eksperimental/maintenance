@@ -23,9 +23,13 @@ defmodule Maintenance.Github do
 
   The pull requests are opened inside a fork, so the head's owner is the repository's owner.
   No token is sent, so an expired `GITHUB_ACCESS_TOKEN` cannot break `status` and `run`.
+  When GitHub has no `owner/repo`, such as a fork that was never made, the error is
+  `{:not_found, "owner/repo"}`.
   """
   @spec find_pull_request(String.t(), String.t(), String.t()) ::
-          {:open | :closed, url :: String.t()} | :none | {:error, term()}
+          {:open | :closed, url :: String.t()}
+          | :none
+          | {:error, {:not_found, String.t()} | term()}
   def find_pull_request(owner, repo, branch) do
     url = "https://api.github.com/repos/#{owner}/#{repo}/pulls"
 
@@ -38,6 +42,7 @@ defmodule Maintenance.Github do
     case Req.get(url, options) do
       {:ok, %{status: 200, body: []}} -> :none
       {:ok, %{status: 200, body: [_first | _rest] = pull_requests}} -> pick(pull_requests)
+      {:ok, %{status: 404}} -> {:error, {:not_found, owner <> "/" <> repo}}
       {:ok, %{status: status, body: body}} -> {:error, {status, body}}
       {:error, exception} -> {:error, exception}
     end
