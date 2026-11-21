@@ -28,17 +28,37 @@ defmodule Maintenance.CLI do
   end
 
   @spec fork!(String.t() | nil) :: Maintenance.fork()
-  def fork!(nil),
-    do: Mix.raise("Missing --fork. Valid forks: #{Enum.join(Maintenance.forks(), ", ")}")
+  def fork!(nil), do: Mix.raise("Missing --fork.\n\n" <> forks_help())
 
   def fork!(name) do
     if name in Maintenance.forks() do
       name
     else
-      Mix.raise(
-        "Unknown fork #{inspect(name)}. Valid forks: #{Enum.join(Maintenance.forks(), ", ")}"
-      )
+      Mix.raise("Unknown fork #{inspect(name)}.\n\n" <> forks_help())
     end
+  end
+
+  @doc """
+  Describes the forks that `--fork` accepts, one on each line.
+  """
+  @spec forks_help() :: String.t()
+  def forks_help() do
+    forks = Maintenance.fork_descriptions()
+
+    width =
+      forks
+      |> Enum.map(fn {fork, _description} -> String.length(fork) end)
+      |> Enum.max()
+
+    lines =
+      Enum.map_join(forks, "\n", fn {fork, description} ->
+        "  " <> String.pad_trailing(fork, width) <> "  " <> description
+      end)
+
+    """
+    Forks for --fork. The pull request is opened inside the fork, never in the upstream project.
+    #{lines}\
+    """
   end
 
   defp find!(atoms, name, singular, plural) do

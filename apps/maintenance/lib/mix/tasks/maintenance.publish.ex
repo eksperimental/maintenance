@@ -5,6 +5,17 @@ defmodule Mix.Tasks.Maintenance.Publish do
 
       mix maintenance.publish PROJECT JOB --fork FORK
 
+  FORK is the GitHub account that holds the fork the pull request is opened in, from the
+  new branch into the fork's main branch. It is never opened in the upstream project, such
+  as `elixir-lang/elixir` or `erlang/otp`. The forks are configured in `config/config.exs`:
+
+    * `maintenance-beam` is for real pull requests. It is the organization that holds the
+      forks of the projects.
+    * `maintenance-beam-app` is for trial runs. It is the account that owns
+      `GITHUB_ACCESS_TOKEN`, and it has forks of its own.
+
+  `mix maintenance` lists the forks with what each one is for.
+
   The pull request is titled with the subject of the commit. If a pull request for the
   branch already exists on the fork, it prints its URL and pushes nothing.
 

@@ -1,6 +1,7 @@
 defmodule Mix.Tasks.Maintenance do
   @moduledoc """
-  Lists the maintenance commands and what they can be run on.
+  Lists the maintenance commands, the projects and jobs they run on, and the forks that
+  pull requests can be opened in.
 
       mix maintenance
   """
@@ -23,7 +24,7 @@ defmodule Mix.Tasks.Maintenance do
     Projects and their jobs:
     #{projects_and_jobs()}
 
-    Forks: #{Enum.join(Maintenance.forks(), ", ")}\
+    #{Maintenance.CLI.forks_help()}\
     """)
   end
 

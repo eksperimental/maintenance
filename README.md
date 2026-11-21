@@ -51,12 +51,23 @@ Publishing is the only step that needs a GitHub token. Store `GITHUB_ACCESS_TOKE
 `.env` and run `source .env` in your terminal.
 
 ```sh
-mix maintenance.publish otp unicode --fork maintenance-beam-app
+mix maintenance.publish otp unicode --fork maintenance-beam
 ```
 
-`--fork` is required. It is one of the forks in `config/config.exs`, and the error
-message for a missing or unknown fork lists them. Pull requests are opened inside a
-fork, never in the original project, from the new branch into the fork's main branch.
+`--fork` is required. It names the GitHub account that holds the fork the pull request
+is opened in. Pull requests are opened inside a fork, never in the upstream project
+(`elixir-lang/elixir` or `erlang/otp`), from the new branch into the fork's main branch.
+The forks are configured in `config/config.exs`:
+
+| Fork                   | Use it for          | What it is                                              |
+| ---------------------- | ------------------- | ------------------------------------------------------- |
+| `maintenance-beam`     | Real pull requests  | The organization that holds the forks of the projects.  |
+| `maintenance-beam-app` | Trial runs          | The account that owns the token, with forks of its own. |
+
+To try the whole flow first, publish to `maintenance-beam-app`, check the pull request,
+and then publish the same commit to `maintenance-beam`. `mix maintenance` and the error
+for a missing or unknown fork list the forks with what each one is for.
+
 The title of the pull request is the subject of the commit.
 
 The command pushes the commit that `mix maintenance.run` built, as it is. If there is

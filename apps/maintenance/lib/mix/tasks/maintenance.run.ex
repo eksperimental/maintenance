@@ -47,7 +47,8 @@ defmodule Mix.Tasks.Maintenance.Run do
 
         Push it and open the pull request:
           mix maintenance.publish #{project} #{job} --fork FORK
-        Forks: #{Enum.join(Maintenance.forks(), ", ")}\
+
+        #{CLI.forks_help()}\
         """)
 
       {:error, reason} ->

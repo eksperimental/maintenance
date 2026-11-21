@@ -21,14 +21,18 @@ config :maintenance, :console,
   metadata: [:request_id]
 
 # Pull requests are opened inside a fork, never in the upstream project.
-# - maintenance-beam is the organization under which repositories are forked.
-# - maintenance-beam-app is the user that creates the PRs. The GitHub access token belongs to this user.
+# `mix maintenance.publish` takes one of the forks as --fork, and the help commands show
+# what each one is for.
 config :maintenance,
   git_repo_url: "https://github.com/eksperimental/maintenance",
   author_github_account: "maintenance-beam-app",
   author_name: "Maintenance App",
   author_email: "eksperimental@tutamail.com",
-  forks: ["maintenance-beam", "maintenance-beam-app"],
+  forks: [
+    {"maintenance-beam", "For real pull requests. The organization that holds the forks."},
+    {"maintenance-beam-app",
+     "For trial runs. The account that owns the token, with forks of its own."}
+  ],
   project_configs: %{
     elixir: %{
       repo: "elixir",

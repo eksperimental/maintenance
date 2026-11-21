@@ -37,7 +37,8 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert output =~ "mix maintenance.publish PROJECT JOB --fork FORK"
       assert output =~ ~r/^  elixir  .*unicode/m
       assert output =~ ~r/^  otp    .*unicode/m
-      assert output =~ "Forks: maintenance-beam, maintenance-beam-app"
+      assert output =~ ~r/^  maintenance-beam      For real pull requests\./m
+      assert output =~ ~r/^  maintenance-beam-app  For trial runs\./m
     end
   end
 
@@ -126,6 +127,7 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert output =~ ~r/1 file changed/
       assert output =~ "git -C #{local} show --stat #{@branch}"
       assert output =~ "mix maintenance.publish elixir fake_job --fork FORK"
+      assert output =~ "Forks for --fork."
     end
   end
 
@@ -133,16 +135,17 @@ defmodule Mix.Tasks.MaintenanceTest do
     test "requires --fork and lists the forks" do
       error = assert_raise Mix.Error, fn -> Publish.run(["elixir", "fake_job"]) end
 
-      assert error.message ==
-               "Missing --fork. Valid forks: maintenance-beam, maintenance-beam-app"
+      assert error.message =~ ~r/\AMissing --fork\.\n\nForks for --fork\./
+      assert error.message =~ ~r/^  maintenance-beam      For real pull requests\./m
+      assert error.message =~ ~r/^  maintenance-beam-app  For trial runs\./m
     end
 
     test "rejects a fork that is not configured" do
       error =
         assert_raise Mix.Error, fn -> Publish.run(["elixir", "fake_job", "--fork", "someone"]) end
 
-      assert error.message ==
-               ~s(Unknown fork "someone". Valid forks: maintenance-beam, maintenance-beam-app)
+      assert error.message =~ ~r/\AUnknown fork "someone"\.\n\nForks for --fork\./
+      assert error.message =~ ~r/^  maintenance-beam-app  For trial runs\./m
     end
 
     test "rejects an unknown project and an unknown job before the fork" do

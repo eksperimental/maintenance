@@ -107,10 +107,16 @@ defmodule Maintenance do
   end
 
   @doc """
-  List the forks where pull requests can be opened.
+  Lists the forks where pull requests can be opened, each with what it is for.
+  """
+  @spec fork_descriptions() :: [{fork(), description :: String.t()}]
+  def fork_descriptions(), do: Application.fetch_env!(@app_name, :forks)
+
+  @doc """
+  Lists the forks where pull requests can be opened.
   """
   @spec forks() :: [fork()]
-  def forks(), do: Application.fetch_env!(@app_name, :forks)
+  def forks(), do: Enum.map(fork_descriptions(), &elem(&1, 0))
 
   @doc """
   Returns the module that implements `job`.
