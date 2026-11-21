@@ -34,8 +34,8 @@ git config --global user.name "Your Name"
 git config --global user.email "you@example.com"
 ```
 
-Put your GitHub account and token in `.env`, which Git ignores, and run `source .env`
-in your terminal:
+Copy `.example.env` to `.env`, which Git ignores, put your GitHub account and token in
+it, and run `source .env` in your terminal:
 
 ```sh
 export GITHUB_ACCOUNT=your-account
