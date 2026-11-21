@@ -16,13 +16,16 @@ defmodule Maintenance.Github do
                  Application.compile_env(:maintenance, :github_req_options, [])
 
   @doc """
-  Finds the pull request, in any state, whose head is `branch` on `owner/repo`.
+  Finds the pull request whose head is `branch` on `owner/repo`.
+
+  An open pull request wins. Otherwise the newest closed one is returned, so the caller can
+  tell that an earlier attempt was closed.
 
   The pull requests are opened inside a fork, so the head's owner is the repository's owner.
   No token is sent, so an expired `GITHUB_ACCESS_TOKEN` cannot break `status` and `run`.
   """
   @spec find_pull_request(String.t(), String.t(), String.t()) ::
-          {:ok, String.t()} | :none | {:error, term()}
+          {:open | :closed, url :: String.t()} | :none | {:error, term()}
   def find_pull_request(owner, repo, branch) do
     url = "https://api.github.com/repos/#{owner}/#{repo}/pulls"
 
@@ -33,10 +36,18 @@ defmodule Maintenance.Github do
       ] ++ @req_options
 
     case Req.get(url, options) do
-      {:ok, %{status: 200, body: [%{"html_url" => html_url} | _other]}} -> {:ok, html_url}
       {:ok, %{status: 200, body: []}} -> :none
+      {:ok, %{status: 200, body: [_first | _rest] = pull_requests}} -> pick(pull_requests)
       {:ok, %{status: status, body: body}} -> {:error, {status, body}}
       {:error, exception} -> {:error, exception}
+    end
+  end
+
+  # GitHub lists the newest pull request first.
+  defp pick(pull_requests) do
+    case Enum.find(pull_requests, &(&1["state"] == "open")) do
+      %{"html_url" => url} -> {:open, url}
+      nil -> {:closed, hd(pull_requests)["html_url"]}
     end
   end
 

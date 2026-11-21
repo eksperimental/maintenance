@@ -55,7 +55,7 @@ defmodule Maintenance.GithubTest do
       end)
     end
 
-    test "returns the URL of the pull request opened from the branch, in any state" do
+    test "returns the open pull request opened from the branch" do
       Req.Test.stub(Github, fn conn ->
         assert conn.method == "GET"
         assert conn.host == "api.github.com"
@@ -64,11 +64,31 @@ defmodule Maintenance.GithubTest do
         assert %{"head" => "owner:unicode_17.0.0", "state" => "all"} =
                  Plug.Conn.fetch_query_params(conn).query_params
 
-        Req.Test.json(conn, [%{"html_url" => "https://github.com/owner/repo/pull/7"}])
+        Req.Test.json(conn, [pull_request(7, "open")])
       end)
 
       assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") ==
-               {:ok, "https://github.com/owner/repo/pull/7"}
+               {:open, "https://github.com/owner/repo/pull/7"}
+    end
+
+    test "returns the open pull request even when a newer one was closed" do
+      Req.Test.stub(
+        Github,
+        &Req.Test.json(&1, [pull_request(8, "closed"), pull_request(7, "open")])
+      )
+
+      assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") ==
+               {:open, "https://github.com/owner/repo/pull/7"}
+    end
+
+    test "returns the newest closed pull request when none is open" do
+      Req.Test.stub(
+        Github,
+        &Req.Test.json(&1, [pull_request(8, "closed"), pull_request(7, "closed")])
+      )
+
+      assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") ==
+               {:closed, "https://github.com/owner/repo/pull/8"}
     end
 
     test "returns :none when no pull request has that head" do
@@ -105,5 +125,9 @@ defmodule Maintenance.GithubTest do
 
       assert Github.find_pull_request("owner", "repo", "unicode_17.0.0") == :none
     end
+  end
+
+  defp pull_request(number, state) do
+    %{"html_url" => "https://github.com/owner/repo/pull/#{number}", "state" => state}
   end
 end

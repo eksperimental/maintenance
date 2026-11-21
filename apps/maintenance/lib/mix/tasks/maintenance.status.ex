@@ -5,6 +5,7 @@ defmodule Mix.Tasks.Maintenance.Status do
       mix maintenance.status [PROJECT [JOB]] [--fork OWNER]
 
   A job is up to date, due, or due with a pull request already open on the fork of OWNER.
+  A due job whose pull request was closed shows that pull request too.
   OWNER defaults to `GITHUB_ACCOUNT`.
   It reads from unicode.org and GitHub, and does not touch the Git checkouts. It works
   without `GITHUB_ACCESS_TOKEN`.
@@ -64,10 +65,20 @@ defmodule Mix.Tasks.Maintenance.Status do
   defp row(project, job, fork) do
     {versions, state} =
       case Maintenance.status(project, job, fork) do
-        {:due, info} -> {"#{info.current} -> #{info.latest}", "due"}
-        {:up_to_date, info} -> {to_string(info.current), "up to date"}
-        {:pr_exists, info, url} -> {"#{info.current} -> #{info.latest}", "PR open: " <> url}
-        {:error, reason} -> Mix.raise("Could not check #{project} #{job}: #{inspect(reason)}")
+        {:due, info} ->
+          {"#{info.current} -> #{info.latest}", "due"}
+
+        {:up_to_date, info} ->
+          {to_string(info.current), "up to date"}
+
+        {:pr_exists, info, url} ->
+          {"#{info.current} -> #{info.latest}", "PR open: " <> url}
+
+        {:pr_closed, info, url} ->
+          {"#{info.current} -> #{info.latest}", "due (closed PR: #{url})"}
+
+        {:error, reason} ->
+          Mix.raise("Could not check #{project} #{job}: #{inspect(reason)}")
       end
 
     [Atom.to_string(project), Atom.to_string(job), versions, state]

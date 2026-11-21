@@ -46,12 +46,21 @@ defmodule MaintenanceTest do
       assert_received {:prepare, @project}
     end
 
-    test "does not build anything when the fork already has a pull request" do
+    test "does not build anything when the fork already has an open pull request" do
       stub_pull_requests(%{@fork => @pull_request_url})
 
       assert Maintenance.run(@project, @job, @fork) == {:pr_exists, @pull_request_url}
 
       refute_received {:prepare, _project}
+    end
+
+    test "builds the commit when the fork's pull request for the branch was closed" do
+      stub_pull_requests(%{@fork => {@pull_request_url, "closed"}})
+
+      assert Maintenance.run(@project, @job, @fork) ==
+               {:committed, %{branch: @branch, path: Git.path(@project)}}
+
+      assert_received {:prepare, @project}
     end
 
     test "does not ask GitHub or build anything when the job is up to date" do
@@ -128,10 +137,31 @@ defmodule MaintenanceTest do
       assert git!(context.local, ~w(branch --show-current)) == "main"
     end
 
-    test "pushes nothing when a pull request already exists", context do
+    test "opens a new pull request when the earlier one was closed", context do
+      closed_url = "https://github.com/#{@fork}/elixir/pull/2"
+
       Req.Test.stub(Github, fn
-        %{method: "GET"} = conn -> Req.Test.json(conn, [%{"html_url" => @pull_request_url}])
-        %{method: "POST"} -> flunk("a pull request was opened")
+        %{method: "GET"} = conn ->
+          Req.Test.json(conn, [%{"html_url" => closed_url, "state" => "closed"}])
+
+        %{method: "POST"} = conn ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"html_url" => @pull_request_url})
+      end)
+
+      assert Maintenance.publish(@project, @job, @fork) == {:opened, @pull_request_url}
+
+      assert refs(context.fork) == %{@branch => context.tip, "main" => context.main}
+    end
+
+    test "pushes nothing when an open pull request already exists", context do
+      Req.Test.stub(Github, fn
+        %{method: "GET"} = conn ->
+          Req.Test.json(conn, [%{"html_url" => @pull_request_url, "state" => "open"}])
+
+        %{method: "POST"} ->
+          flunk("a pull request was opened")
       end)
 
       assert Maintenance.publish(@project, @job, @fork) == {:pr_exists, @pull_request_url}
@@ -180,13 +210,15 @@ defmodule MaintenanceTest do
     %{current: Version.parse!("0.0.1"), latest: Version.parse!("1.0.0"), branch: branch}
   end
 
-  # Answers the pull request lookups: `pull_requests` maps a fork to the URL of its pull request.
+  # Answers the pull request lookups: `pull_requests` maps a fork to the URL of its open pull
+  # request, or to `{url, state}`.
   defp stub_pull_requests(pull_requests) do
     Req.Test.stub(Github, fn conn ->
       ["", "repos", fork, "elixir", "pulls"] = String.split(conn.request_path, "/")
 
       case Map.fetch(pull_requests, fork) do
-        {:ok, url} -> Req.Test.json(conn, [%{"html_url" => url}])
+        {:ok, {url, state}} -> Req.Test.json(conn, [%{"html_url" => url, "state" => state}])
+        {:ok, url} -> Req.Test.json(conn, [%{"html_url" => url, "state" => "open"}])
         :error -> Req.Test.json(conn, [])
       end
     end)

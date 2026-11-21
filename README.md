@@ -96,7 +96,9 @@ otp     unicode  17.0.0 -> 18.0.0  due
 ```
 
 A job is `due`, `up to date`, or due with a pull request that is already open
-(`PR open: <url>`). The command reads from unicode.org and GitHub. It needs no token.
+(`PR open: <url>`). A pull request that was closed without being merged does not block
+the job: it shows as `due (closed PR: <url>)`, and `run` and `publish` go ahead. The
+command reads from unicode.org and GitHub. It needs no token.
 
 ### 2. Build the commit
 
@@ -130,9 +132,9 @@ pull request on that same fork.
 The title of the pull request is the subject of the commit.
 
 The command pushes the commit that `mix maintenance.run` built, as it is. If there is
-no such commit, it tells you to run `mix maintenance.run PROJECT JOB` first. If a
-pull request for the branch already exists on the fork, it prints its URL and pushes
-nothing.
+no such commit, it tells you to run `mix maintenance.run PROJECT JOB` first. If an
+open pull request for the branch already exists on the fork, it prints its URL and
+pushes nothing.
 
 Each publish also fast-forwards the fork's main branch to the upstream commit
 the job started from, so the pull request shows only the new commits. If the

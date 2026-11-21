@@ -6,7 +6,7 @@ defmodule Mix.Tasks.Maintenance.Run do
 
   It refreshes the checkout under `~/maintenance_data/cache`, writes the files and commits
   them on a new branch. Nothing is pushed. It can be run again: it starts from the
-  upstream branch each time. If a pull request for the branch exists on the fork of OWNER,
+  upstream branch each time. If an open pull request for the branch exists on the fork of OWNER,
   it prints its URL and changes nothing. OWNER defaults to `GITHUB_ACCOUNT`.
 
   The commit is authored with your own Git identity, from `git config user.name` and
@@ -37,7 +37,7 @@ defmodule Mix.Tasks.Maintenance.Run do
         Mix.shell().info("#{project} #{job} is up to date. Nothing to do.")
 
       {:pr_exists, url} ->
-        Mix.shell().info("A pull request already exists: #{url}")
+        Mix.shell().info("An open pull request already exists: #{url}")
 
       {:committed, %{branch: branch, path: path}} ->
         {:ok, stat} = Git.diff_stat(project, branch)

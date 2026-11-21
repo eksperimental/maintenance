@@ -10,7 +10,7 @@ defmodule Mix.Tasks.Maintenance.Publish do
   `erlang/otp`. OWNER defaults to `GITHUB_ACCOUNT`, usually the account that owns
   `GITHUB_ACCESS_TOKEN`. Any other OWNER must have a fork the token can push to.
 
-  The pull request is titled with the subject of the commit. If a pull request for the
+  The pull request is titled with the subject of the commit. If an open pull request for the
   branch already exists on the fork, it prints its URL and pushes nothing.
 
   This is the only command that needs `GITHUB_ACCESS_TOKEN`: put it in `.env` and run
@@ -37,7 +37,7 @@ defmodule Mix.Tasks.Maintenance.Publish do
         Mix.shell().info("Opened #{url}")
 
       {:pr_exists, url} ->
-        Mix.shell().info("A pull request already exists: #{url}")
+        Mix.shell().info("An open pull request already exists: #{url}")
 
       {:error, :missing_token} ->
         Mix.raise("GITHUB_ACCESS_TOKEN is not set. Put it in .env and run `source .env`.")

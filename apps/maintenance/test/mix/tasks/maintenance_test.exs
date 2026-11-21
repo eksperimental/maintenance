@@ -65,6 +65,15 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert printed() == "elixir  fake_job  0.0.1 -> 1.0.0  PR open: #{@pull_request_url}\n"
     end
 
+    test "prints the URL of a closed pull request and leaves the job due" do
+      stub_pull_request("some-account", "closed")
+
+      Status.run(["elixir", "fake_job"])
+
+      assert printed() ==
+               "elixir  fake_job  0.0.1 -> 1.0.0  due (closed PR: #{@pull_request_url})\n"
+    end
+
     test "prints the current version of a job that is up to date" do
       set_status({:up_to_date, info()})
 
@@ -229,11 +238,11 @@ defmodule Mix.Tasks.MaintenanceTest do
   defp restore_env(name, nil), do: System.delete_env(name)
   defp restore_env(name, value), do: System.put_env(name, value)
 
-  defp stub_pull_request(fork) do
+  defp stub_pull_request(fork, state \\ "open") do
     Req.Test.stub(Github, fn conn ->
       case String.split(conn.request_path, "/") do
         ["", "repos", ^fork, "elixir", "pulls"] ->
-          Req.Test.json(conn, [%{"html_url" => @pull_request_url}])
+          Req.Test.json(conn, [%{"html_url" => @pull_request_url, "state" => state}])
 
         _other ->
           Req.Test.json(conn, [])

@@ -117,33 +117,33 @@ defmodule Maintenance do
   end
 
   @doc """
-  Returns whether `job` is due for `project`, and, if so, whether a pull request for it exists
-  on `fork`. Only the network is used.
+  Returns whether `job` is due for `project`, and, if so, whether `fork` has a pull request
+  for it, open or closed. A closed one leaves the job due. Only the network is used.
   """
   @spec status(project, job, fork) ::
           {:up_to_date | :due, MaintenanceJob.info()}
-          | {:pr_exists, MaintenanceJob.info(), url :: String.t()}
+          | {:pr_exists | :pr_closed, MaintenanceJob.info(), url :: String.t()}
           | {:error, term()}
   def status(project, job, fork) when is_project(project) and is_job(job) and is_binary(fork) do
     case job_module(job).status(project) do
-      {:due, info} ->
-        case Github.find_pull_request(fork, Project.config!(project, :repo), info.branch) do
-          :none -> {:due, info}
-          {:ok, url} -> {:pr_exists, info, url}
-          {:error, _reason} = error -> error
-        end
+      {:due, info} -> due_status(project, info, fork)
+      {:up_to_date, _info} = up_to_date -> up_to_date
+      {:error, _reason} = error -> error
+    end
+  end
 
-      {:up_to_date, _info} = up_to_date ->
-        up_to_date
-
-      {:error, _reason} = error ->
-        error
+  defp due_status(project, info, fork) do
+    case Github.find_pull_request(fork, Project.config!(project, :repo), info.branch) do
+      :none -> {:due, info}
+      {:open, url} -> {:pr_exists, info, url}
+      {:closed, url} -> {:pr_closed, info, url}
+      {:error, _reason} = error -> error
     end
   end
 
   @doc """
   Builds the commit for `job` in the cached checkout of `project`, if it is due and `fork`
-  has no pull request for it yet. Nothing is pushed.
+  has no open pull request for it. Nothing is pushed.
   """
   @spec run(project, job, fork) ::
           :up_to_date
@@ -162,10 +162,17 @@ defmodule Maintenance do
         error
 
       {:due, _info} ->
-        with :ok <- ensure_git_identity(),
-             {:ok, :committed, branch} <- job_module(job).prepare(project) do
-          {:committed, %{branch: branch, path: Git.path(project)}}
-        end
+        build(project, job)
+
+      {:pr_closed, _info, _url} ->
+        build(project, job)
+    end
+  end
+
+  defp build(project, job) do
+    with :ok <- ensure_git_identity(),
+         {:ok, :committed, branch} <- job_module(job).prepare(project) do
+      {:committed, %{branch: branch, path: Git.path(project)}}
     end
   end
 
@@ -183,7 +190,7 @@ defmodule Maintenance do
     with :ok <- ensure_token(),
          {_status, %{branch: branch}} <- job_module(job).status(project),
          :ok <- ensure_committed(project, branch),
-         :none <- Github.find_pull_request(fork, repo, branch),
+         :ok <- ensure_no_open_pull_request(fork, repo, branch),
          :ok <- push(project, branch, fork),
          {:ok, subject} <- Git.commit_subject(project, branch),
          {:ok, pull_request} <-
@@ -195,8 +202,16 @@ defmodule Maintenance do
            }) do
       {:opened, Map.fetch!(pull_request, "html_url")}
     else
-      {:ok, url} -> {:pr_exists, url}
+      {:pr_exists, _url} = pr_exists -> pr_exists
       {:error, _reason} = error -> error
+    end
+  end
+
+  defp ensure_no_open_pull_request(fork, repo, branch) do
+    case Github.find_pull_request(fork, repo, branch) do
+      {:open, url} -> {:pr_exists, url}
+      {:error, _reason} = error -> error
+      _none_or_closed -> :ok
     end
   end
 
