@@ -191,10 +191,14 @@ defmodule MaintenanceJob.Unicode do
           \d+\.\d+(?:\.\d+)?  # Captures version like 17.0 or 17.0.1
         }x
 
+      regex_uts39 =
+        ~r{(\[Unicode Technical Standard #39\]\([^)]+\) on Security, version )\d+\.\d+(?:\.\d+)?}
+
       unicode_syntax_content =
         unicode_syntax_path
         |> File.read!()
         |> String.replace(regex_unicode_syntax, "\\g{1}#{version.major}.#{version.minor}")
+        |> String.replace(regex_uts39, "\\g{1}#{version.major}.#{version.minor}")
 
       File.write(unicode_syntax_path, unicode_syntax_content)
     end
