@@ -1,0 +1,65 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+            ~/.mix/dialyxir_*
+          key: ${{ runner.os }}-mix-${{ hashFiles('.tool-versions', 'mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - run: mix deps.get
+
+      - run: mix check
+
+      # The check alias runs recode with autocorrect on, so a fixable issue
+      # gets rewritten and the step still passes. Fail if anything changed.
+      - run: git diff --exit-code
+
+  # Runs the same checks on the oldest Elixir that apps/maintenance/mix.exs
+  # accepts. mix test alone misses a call that only newer Elixir has when no
+  # test runs that line, or when it is in config/dev.exs.
+  check-oldest-elixir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.15.7"
+          otp-version: "26.2.5.2"
+          version-type: strict
+
+      # The key must not start with the check job's restore key, or that job
+      # could restore a build made by this older Elixir.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+            ~/.mix/dialyxir_*
+          key: ${{ runner.os }}-mix115-${{ hashFiles('mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix115-
+
+      - run: mix deps.get
+
+      - run: mix check
+
+      - run: git diff --exit-code

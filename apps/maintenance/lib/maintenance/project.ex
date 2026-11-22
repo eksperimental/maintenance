@@ -3,16 +3,10 @@ defmodule Maintenance.Project do
   Module that contains the specific code for updating each project.
   """
 
-  alias Maintenance.DB
-
   # Add new projects here
-  @type t :: :sample_project | :elixir | :otp | :beam_langs_meta_data
-
-  @typep remote :: :dev | :origin | :upstream
+  @type t :: :elixir | :otp
 
   defguardp is_project(term) when is_atom(term)
-
-  defguard is_remote(term) when term in [:dev, :origin, :upstream]
 
   @doc """
   Returns the configuration key-values for `project`.
@@ -44,58 +38,29 @@ defmodule Maintenance.Project do
     |> Map.fetch!(key)
   end
 
-  @spec list_entries_by_job(Maintenance.project(), Maintenance.job()) :: any()
-  def list_entries_by_job(project, job) when is_project(project) and is_atom(job) do
-    # {:ok, result} = DB.select(project, min_key: {job, 0}, reverse: true, pipe: [reduce: fn ])
-    {:ok, results} = DB.select(project, reverse: true)
-
-    Enum.filter(results, fn
-      {{^job, _other}, _value} -> true
-      {^job, _value} -> true
-      _other -> false
-    end)
-  end
-
   @spec list() :: [Maintenance.project()]
   def list() do
-    project_configs = Application.fetch_env!(:maintenance, :project_configs)
-
-    Map.keys(project_configs)
+    :maintenance
+    |> Application.fetch_env!(:project_configs)
+    |> Map.keys()
+    |> Enum.sort()
   end
 
   @doc """
-  Returns the git_url from `config/0` based on whether the app
-  is running in production mode or not.
+  Returns the URL of the upstream repository of `project`.
   """
-  @spec get_git_url(t() | map(), remote()) :: String.t()
-  def get_git_url(project_or_config, remote)
+  @spec git_url(Maintenance.project()) :: String.t()
+  def git_url(project) when is_project(project) do
+    %{owner: owner, repo: repo} = config!(project)
 
-  def get_git_url(project, remote) when is_project(project) and is_remote(remote) do
-    project
-    |> config!()
-    |> get_git_url(remote)
-  end
-
-  def get_git_url(config, remote) when is_map(config) when is_remote(remote) do
-    owner = Map.get(config.owner, remote)
-
-    "https://github.com/#{owner}/#{config.repo}"
+    "https://github.com/#{owner}/#{repo}"
   end
 
   @doc """
-  Returns the project owner from `config/0` based on whether the app
-  is running in production mode or not.
+  Returns the URL of the repository of `project` in the `fork` account.
   """
-  @spec get_owner(t() | map(), remote()) :: String.t()
-  def get_owner(project_or_config, remote)
-
-  def get_owner(project, remote) when is_project(project) and is_remote(remote) do
-    project
-    |> config!()
-    |> get_owner(remote)
-  end
-
-  def get_owner(config, remote) when is_map(config) and is_remote(remote) do
-    Map.get(config.owner, remote)
+  @spec fork_url(Maintenance.project(), String.t()) :: String.t()
+  def fork_url(project, fork) when is_project(project) and is_binary(fork) do
+    "https://github.com/#{fork}/#{config!(project, :repo)}"
   end
 end

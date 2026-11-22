@@ -18,7 +18,7 @@ defmodule Maintenance.Umbrella.MixProject do
       description: @description,
       deps: deps(),
       aliases: aliases(),
-      releases: releases(),
+      dialyzer: [plt_add_apps: [:mix]],
 
       # Docs
       name: @name,
@@ -34,8 +34,7 @@ defmodule Maintenance.Umbrella.MixProject do
       # {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
-      {:gradient, github: "esl/gradient", only: [:dev], runtime: false},
-      {:recode, "~> 0.7", only: :dev}
+      {:recode, "~> 0.9", only: :dev}
     ]
   end
 
@@ -50,10 +49,11 @@ defmodule Maintenance.Umbrella.MixProject do
         "deps.unlock --check-unused",
         "compile --warnings-as-errors",
         "credo",
-        # "gradient",
         "dialyzer",
         "docs",
+        test_in_test_env(),
 
+        # recode ends Mix when it finishes, so it must stay the last step.
         # # NOTE: Change to `"recode --no-autocorrect",` once the bug in Recode has been fixed
         "recode "
       ],
@@ -70,43 +70,29 @@ defmodule Maintenance.Umbrella.MixProject do
       all: [
         "setup",
         "prepare",
-        "check",
-        test_isolated()
+        "check"
       ]
     ]
   end
 
-  defp test_isolated() do
+  # The check alias runs in the dev environment, where `mix test` refuses to run.
+  defp test_in_test_env() do
     fn _args ->
-      env = %{"MIX_ENV" => "test"}
+      {_output, status} =
+        System.cmd("mix", ["test"],
+          env: %{"MIX_ENV" => "test"},
+          into: IO.stream(),
+          stderr_to_stdout: true
+        )
 
-      with {:"test setup", {_, 0}} <- {:"test setup", System.cmd("mix", ~w[setup], env: env)},
-           {:test, {_, 0}} <- {:test, System.cmd("mix", ~w[test], env: env)} do
-        true
-      else
-        {type, {output, _}} ->
-          IO.puts(output)
-          raise("#{type} failed.")
-      end
+      if status != 0, do: Mix.raise("mix test failed")
     end
-  end
-
-  defp releases do
-    [
-      maintenance: [
-        applications: [
-          maintenance: :permanent,
-          maintenance_web: :permanent
-        ]
-      ]
-    ]
   end
 
   defp docs do
     [
       # The main page in the docs
       main: @name,
-      ignore_apps: [:maintenance_web],
       authors: ["Eksperimental"],
       extras: [
         "README.md": [filename: "readme", title: "Readme"],

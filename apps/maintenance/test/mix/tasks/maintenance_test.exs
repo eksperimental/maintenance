@@ -1,0 +1,913 @@
+defmodule Mix.Tasks.MaintenanceTest do
+  use ExUnit.Case, async: false
+
+  import Maintenance.EnvHelpers
+  import Maintenance.GitHelpers
+
+  alias Maintenance.Git
+  alias Maintenance.Github
+  alias MaintenanceJob.Unicode
+  alias Mix.Tasks.Maintenance.Publish
+  alias Mix.Tasks.Maintenance.Run
+  alias Mix.Tasks.Maintenance.Status
+
+  @moduletag :tmp_dir
+
+  @branch "fake_job_1"
+  @pull_request_url "https://github.com/some-account/elixir/pull/3"
+
+  @ucd_files ~w(
+    CaseFolding.txt CompositionExclusions.txt DerivedCoreProperties.txt EastAsianWidth.txt
+    IndicSyllabicCategory.txt NormalizationTest.txt PropList.txt PropertyValueAliases.txt
+    ScriptExtensions.txt Scripts.txt SpecialCasing.txt UnicodeData.txt
+    auxiliary/GraphemeBreakProperty.txt auxiliary/GraphemeBreakTest.txt
+    auxiliary/LineBreakTest.txt emoji/emoji-data.txt
+  )
+  @uts39_files ~w(IdentifierType.txt confusables.txt)
+
+  setup do
+    shell = Mix.shell()
+    Mix.shell(Mix.Shell.Process)
+    on_exit(fn -> Mix.shell(shell) end)
+
+    previous = Application.get_env(:maintenance, MaintenanceJob.FakeJob)
+    on_exit(fn -> Application.put_env(:maintenance, MaintenanceJob.FakeJob, previous) end)
+    set_status({:due, info()})
+
+    Req.Test.stub(Github, fn conn -> Req.Test.json(conn, []) end)
+    :ok
+  end
+
+  describe "mix maintenance" do
+    test "lists the commands, the projects with their jobs, and the default fork" do
+      Mix.Tasks.Maintenance.run([])
+
+      output = printed()
+      assert output =~ "mix maintenance.status [PROJECT [JOB]]"
+      assert output =~ "mix maintenance.run PROJECT JOB"
+      assert output =~ "mix maintenance.publish PROJECT JOB"
+      assert output =~ ~r/^  elixir  .*unicode/m
+      assert output =~ ~r/^  otp    .*unicode/m
+      assert output =~ "Pull requests are opened inside the fork of some-account (GITHUB_ACCOUNT)"
+      assert output =~ "--fork OWNER"
+    end
+  end
+
+  describe "mix maintenance.status" do
+    test "prints one line for a due job" do
+      Status.run(["elixir", "fake_job"])
+
+      assert printed() == "elixir  fake_job  0.0.1 -> 1.0.0  due\n"
+    end
+
+    test "prints the URL of the pull request open on the fork of GITHUB_ACCOUNT" do
+      stub_pull_request("some-account")
+
+      Status.run(["elixir", "fake_job"])
+
+      assert printed() == "elixir  fake_job  0.0.1 -> 1.0.0  PR open: #{@pull_request_url}\n"
+    end
+
+    test "looks for the pull request on the fork given as --fork" do
+      stub_pull_request("someone")
+
+      Status.run(["elixir", "fake_job", "--fork", "someone"])
+
+      assert printed() == "elixir  fake_job  0.0.1 -> 1.0.0  PR open: #{@pull_request_url}\n"
+    end
+
+    test "prints the URL of a closed pull request and leaves the job due" do
+      stub_pull_request("some-account", "closed")
+
+      Status.run(["elixir", "fake_job"])
+
+      assert printed() ==
+               "elixir  fake_job  0.0.1 -> 1.0.0  due (closed PR: #{@pull_request_url})\n"
+    end
+
+    test "prints the current version of a job that is up to date" do
+      set_status({:up_to_date, info()})
+
+      Status.run(["elixir", "fake_job"])
+
+      assert printed() == "elixir  fake_job  0.0.1  up to date\n"
+    end
+
+    test "prints every job, names the repository missing from the fork, then fails" do
+      stub_unicode_versions()
+      stub_missing_repo("some-account/otp")
+
+      error = assert_raise Mix.Error, fn -> Status.run([]) end
+
+      assert printed() == """
+             elixir  fake_job  0.0.1 -> 1.0.0    due
+             elixir  unicode   16.0.0 -> 17.0.0  due
+             otp     unicode                     error: some-account/otp not found on GitHub
+             """
+
+      assert error.message == "Could not check otp unicode"
+    end
+
+    test "tells until when the GitHub rate limit is used up" do
+      Req.Test.stub(Github, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("x-ratelimit-remaining", "0")
+        |> Plug.Conn.put_resp_header("x-ratelimit-reset", "1795300860")
+        |> Plug.Conn.put_status(403)
+        |> Req.Test.json(%{"message" => "API rate limit exceeded for 203.0.113.5."})
+      end)
+
+      assert_raise Mix.Error, fn -> Status.run(["elixir", "fake_job"]) end
+
+      assert printed() ==
+               "elixir  fake_job    error: GitHub rate limit reached, try again after 22:41 UTC\n"
+    end
+
+    test "tells when GitHub cannot be reached" do
+      Req.Test.stub(Github, &Req.Test.transport_error(&1, :econnrefused))
+
+      assert_raise Mix.Error, fn -> Status.run(["elixir", "fake_job"]) end
+
+      assert printed() == "elixir  fake_job    error: network error (connection refused)\n"
+    end
+
+    test "names the file the current Unicode version could not be read from" do
+      stub_unicode_versions(%{
+        "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" =>
+          &Plug.Conn.send_resp(&1, 200, "defmodule String.Unicode do\n")
+      })
+
+      error = assert_raise Mix.Error, fn -> Status.run(["elixir", "unicode"]) end
+
+      assert printed() ==
+               "elixir  unicode    error: current Unicode version not found in " <>
+                 "https://raw.githubusercontent.com/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex\n"
+
+      assert error.message == "Could not check elixir unicode"
+    end
+
+    test "says when unicode.org does not name the latest Unicode version" do
+      stub_unicode_versions(%{
+        "/versions/latest/" => fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("location", "https://www.unicode.org/versions/")
+          |> Plug.Conn.send_resp(302, "")
+        end
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["otp", "unicode"]) end
+
+      assert printed() ==
+               "otp  unicode    error: latest Unicode version not found at " <>
+                 "https://www.unicode.org/versions/latest/\n"
+    end
+
+    test "tells when the source file of the current Unicode version cannot be reached" do
+      stub_unicode_versions(%{
+        "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" =>
+          &Req.Test.transport_error(&1, :econnrefused)
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["elixir", "unicode"]) end
+
+      assert printed() == "elixir  unicode    error: network error (connection refused)\n"
+    end
+
+    test "tells the HTTP status when the source file of the current Unicode version cannot be fetched" do
+      stub_unicode_versions(%{
+        "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" =>
+          &Plug.Conn.send_resp(&1, 404, "404: Not Found")
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["elixir", "unicode"]) end
+
+      assert printed() ==
+               "elixir  unicode    error: could not download " <>
+                 "https://raw.githubusercontent.com/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" <>
+                 " (HTTP 404)\n"
+    end
+
+    test "tells when unicode.org cannot be reached" do
+      stub_unicode_versions(%{
+        "/versions/latest/" => &Req.Test.transport_error(&1, :econnrefused)
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["otp", "unicode"]) end
+
+      assert printed() == "otp  unicode    error: network error (connection refused)\n"
+    end
+
+    test "says when unicode.org answers without redirecting to a Unicode version" do
+      stub_unicode_versions(%{
+        "/versions/latest/" => &Plug.Conn.send_resp(&1, 200, "<html></html>")
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["otp", "unicode"]) end
+
+      assert printed() ==
+               "otp  unicode    error: latest Unicode version not found at " <>
+                 "https://www.unicode.org/versions/latest/\n"
+    end
+
+    test "asks for --fork or GITHUB_ACCOUNT when neither is given" do
+      put_env("GITHUB_ACCOUNT", nil)
+
+      error = assert_raise Mix.Error, fn -> Status.run(["elixir", "fake_job"]) end
+
+      assert error.message =~ "Pass --fork OWNER, or add `export GITHUB_ACCOUNT="
+    end
+
+    test "rejects an unknown project and lists the projects" do
+      error = assert_raise Mix.Error, fn -> Status.run(["erlang"]) end
+
+      assert error.message == ~s(Unknown project "erlang". Valid projects: elixir, otp)
+    end
+
+    test "rejects an unknown job and lists the jobs of the project" do
+      error = assert_raise Mix.Error, fn -> Status.run(["elixir", "nope"]) end
+
+      assert error.message =~ ~s(Unknown job for elixir "nope". Valid jobs for elixir: )
+      assert error.message =~ "fake_job"
+      assert error.message =~ "unicode"
+    end
+
+    test "rejects more arguments than a project and a job" do
+      error = assert_raise Mix.Error, fn -> Status.run(["elixir", "fake_job", "extra"]) end
+
+      assert error.message =~ "Usage: mix maintenance.status [PROJECT [JOB]]"
+    end
+  end
+
+  describe "mix maintenance.run" do
+    test "rejects an unknown project and an unknown job" do
+      assert_raise Mix.Error, ~r/Unknown project "nope"/, fn -> Run.run(["nope", "unicode"]) end
+      assert_raise Mix.Error, ~r/Unknown job for otp "nope"/, fn -> Run.run(["otp", "nope"]) end
+    end
+
+    test "tells the usage when the job is missing" do
+      assert_raise Mix.Error, ~r/Usage: mix maintenance.run PROJECT JOB/, fn ->
+        Run.run(["elixir"])
+      end
+    end
+
+    test "stops before building when Git does not know who the runner is" do
+      for name <-
+            ~w(GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL EMAIL),
+          do: put_env(name, nil)
+
+      put_env("GIT_CONFIG_GLOBAL", "/dev/null")
+      put_env("GIT_CONFIG_NOSYSTEM", "1")
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "fake_job"]) end
+
+      assert error.message =~ "Git does not know who you are"
+      assert error.message =~ ~s(git config --global user.email "you@example.com")
+      refute_received {:prepare, _project}
+    end
+
+    test "says there is nothing to do when the job is up to date" do
+      set_status({:up_to_date, info()})
+
+      Run.run(["elixir", "fake_job"])
+
+      assert printed() == "elixir fake_job is up to date. Nothing to do.\n"
+    end
+
+    test "names the repository missing from the fork" do
+      stub_missing_repo("some-account/elixir")
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "fake_job"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir fake_job: " <>
+                 "some-account/elixir not found on GitHub"
+
+      refute_received {:prepare, _project}
+    end
+
+    test "names the file the current Unicode version could not be read from" do
+      stub_unicode_versions(%{
+        "/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript" =>
+          &Plug.Conn.send_resp(&1, 200, "spec_version() -> unknown.\n")
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: current Unicode version not found in " <>
+                 "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript"
+    end
+
+    test "asks unicode.org for the latest Unicode version only once" do
+      forget_cached_ucd()
+      {:ok, asked} = Agent.start_link(fn -> 0 end)
+
+      stub_unicode_versions(%{
+        "/versions/latest/" => fn conn ->
+          if Agent.get_and_update(asked, &{&1, &1 + 1}) == 0 do
+            conn
+            |> Plug.Conn.put_resp_header(
+              "location",
+              "https://www.unicode.org/versions/Unicode17.0.0/"
+            )
+            |> Plug.Conn.send_resp(302, "")
+          else
+            Req.Test.transport_error(conn, :econnrefused)
+          end
+        end,
+        "/Public/17.0.0/ucd/UCD.zip" => &Plug.Conn.send_resp(&1, 404, "")
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: could not download " <>
+                 "https://www.unicode.org/Public/17.0.0/ucd/UCD.zip (HTTP 404)"
+    end
+
+    test "names the Unicode file that could not be downloaded" do
+      forget_cached_ucd()
+
+      stub_unicode_versions(%{
+        "/Public/17.0.0/ucd/UCD.zip" => &Plug.Conn.send_resp(&1, 404, "")
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: could not download " <>
+                 "https://www.unicode.org/Public/17.0.0/ucd/UCD.zip (HTTP 404)"
+    end
+
+    test "tells when a Unicode file cannot be downloaded" do
+      forget_cached_ucd()
+
+      stub_unicode_versions(%{
+        "/Public/17.0.0/ucd/UCD.zip" => &Req.Test.transport_error(&1, :econnrefused)
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: network error (connection refused)"
+    end
+
+    test "says what Git answered when the project cannot be cloned", %{tmp_dir: tmp_dir} do
+      checkout = Git.path(:otp)
+      File.rm_rf!(checkout)
+      on_exit(fn -> File.rm_rf!(checkout) end)
+
+      # Send the URL of OTP to a directory that holds no repository. The whole URL outranks a
+      # shorter insteadOf in the runner's own Git config.
+      put_env("GIT_CONFIG_COUNT", "1")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{tmp_dir}/missing.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/erlang/otp")
+
+      stub_unicode_versions(unicode_zips())
+
+      error = assert_raise Mix.Error, fn -> Run.run(["otp", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for otp unicode: " <>
+                 "git clone --quiet https://github.com/erlang/otp --branch master #{checkout} " <>
+                 "failed: fatal: '#{tmp_dir}/missing' does not appear to be a git repository"
+    end
+
+    test "says what Git answered when the cached checkout cannot be reset" do
+      local = Git.path(:elixir)
+      File.rm_rf!(local)
+      File.mkdir_p!(local)
+      on_exit(fn -> File.rm_rf!(local) end)
+
+      git!(local, ~w(init --quiet --initial-branch main))
+      commit!(local, "main")
+
+      # The checkout stands in for upstream, so it is already up to date.
+      put_env("GIT_CONFIG_COUNT", "1")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+
+      # A Git process that died while it wrote the index leaves its lock behind.
+      lock = Path.join(local, ".git/index.lock")
+      File.write!(lock, "")
+
+      stub_unicode_versions(unicode_zips())
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git reset --hard HEAD failed: " <>
+                 "fatal: Unable to create '#{lock}': File exists."
+    end
+
+    test "says what Git answered when the checkout cannot be configured", %{tmp_dir: tmp_dir} do
+      local = Git.path(:elixir)
+      File.rm_rf!(local)
+      File.mkdir_p!(local)
+      on_exit(fn -> File.rm_rf!(local) end)
+
+      git!(local, ~w(init --quiet --initial-branch main))
+      commit!(local, "main")
+
+      # Upstream has a commit the checkout lacks, so run updates the checkout.
+      upstream = Path.join(tmp_dir, "upstream")
+      git!(tmp_dir, ["clone", "--quiet", local, upstream])
+      commit!(upstream, "newer")
+
+      put_env("GIT_CONFIG_COUNT", "1")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{upstream}.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+
+      # A Git process that died while it wrote the config leaves its lock behind.
+      lock = Path.join(local, ".git/config.lock")
+      File.write!(lock, "")
+
+      stub_unicode_versions(unicode_zips())
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git config pull.ff only failed: " <>
+                 "error: could not lock config file .git/config: File exists"
+    end
+
+    test "says what Git answered when the commit fails and leaves the checkout as it was",
+         %{tmp_dir: tmp_dir} do
+      local =
+        elixir_checkout!(tmp_dir, %{"pre-commit" => "echo 'rejected by the hook' >&2\nexit 1"})
+
+      unicode_module = Path.join(local, "lib/elixir/unicode/unicode.ex")
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git commit failed: " <>
+                 "rejected by the hook"
+
+      assert File.read!(unicode_module) == "  def version, do: {16, 0, 0}\n"
+      assert git!(local, ~w(status --porcelain)) == ""
+      assert git!(local, ["branch", "--format=%(refname:short)"]) == "main"
+    end
+
+    test "says what Git answered when the checkout cannot return to the main branch after the commit",
+         %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{"post-commit" => "touch .git/index.lock"})
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git checkout --quiet main failed: " <>
+                 "fatal: Unable to create '#{local}/.git/index.lock': File exists."
+    end
+
+    test "says what the post-checkout hook answered when the checkout cannot return to the main branch",
+         %{tmp_dir: tmp_dir} do
+      # Git passes the commits before and after the checkout, which differ only on the way back.
+      elixir_checkout!(tmp_dir, %{
+        "post-checkout" => ~s([ "$1" = "$2" ] && exit 0\necho 'rejected by the hook' >&2\nexit 1)
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: " <>
+                 "git checkout --quiet main failed: rejected by the hook"
+    end
+
+    test "names the exit status when the post-checkout hook fails without a word",
+         %{tmp_dir: tmp_dir} do
+      elixir_checkout!(tmp_dir, %{"post-checkout" => ~s([ "$1" = "$2" ] && exit 0\nexit 1)})
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: " <>
+                 "git checkout --quiet main failed: exit status 1"
+    end
+
+    test "replaces what is not UTF-8 in what Git answered, which Mix cannot print",
+         %{tmp_dir: tmp_dir} do
+      elixir_checkout!(tmp_dir, %{
+        "pre-commit" => "printf 'rejected \\377 by the hook\\n' >&2\nexit 1"
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git commit failed: " <>
+                 "rejected \u{FFFD} by the hook"
+    end
+
+    test "says what Git answered when the commit fails even if the checkout cannot be undone",
+         %{tmp_dir: tmp_dir} do
+      elixir_checkout!(tmp_dir, %{
+        "pre-commit" => "touch .git/index.lock\necho 'rejected by the hook' >&2\nexit 1"
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git commit failed: " <>
+                 "rejected by the hook"
+    end
+
+    test "says when the checkout already has the files of the update", %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{})
+      Run.run(["elixir", "unicode"])
+
+      # Upstream merged the update, while GitHub still serves the old version of its file.
+      git!(local, ~w(merge --quiet --ff-only unicode_17.0.0))
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: " <>
+                 "nothing to commit, the checkout already has the files the job writes"
+
+      assert git!(local, ["branch", "--format=%(refname:short)"]) == "main"
+    end
+
+    test "commits the update when Git is set to compare files with an external tool",
+         %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{})
+      # A tool Git trusts to tell whether files differ, which finds that they never do.
+      put_env("GIT_CONFIG_COUNT", "4")
+      put_env("GIT_CONFIG_KEY_2", "diff.external")
+      put_env("GIT_CONFIG_VALUE_2", "true")
+      put_env("GIT_CONFIG_KEY_3", "diff.trustExitCode")
+      put_env("GIT_CONFIG_VALUE_3", "true")
+
+      Run.run(["elixir", "unicode"])
+
+      assert git!(local, ~w(log -1 --format=%s unicode_17.0.0)) ==
+               "Update Unicode to version 17.0.0"
+    end
+
+    test "names the author in UTF-8 when Git is set to print logs in another encoding",
+         %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{})
+      put_env("GIT_AUTHOR_NAME", "José")
+      put_env("GIT_CONFIG_COUNT", "3")
+      put_env("GIT_CONFIG_KEY_2", "i18n.logOutputEncoding")
+      put_env("GIT_CONFIG_VALUE_2", "ISO-8859-1")
+
+      Run.run(["elixir", "unicode"])
+
+      assert printed() =~ "Committed unicode_17.0.0 as José <test@example.com> in #{local}"
+    end
+
+    test "names the exit status when the commit fails without a word", %{tmp_dir: tmp_dir} do
+      elixir_checkout!(tmp_dir, %{"pre-commit" => "exit 1"})
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git commit failed: exit status 1"
+    end
+
+    test "says the commit is there when Git cannot summarize what it changes",
+         %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{"post-commit" => "git config diff.renames bogus"})
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Committed unicode_17.0.0 in #{local}, but could not describe it: " <>
+                 "git diff --stat main...unicode_17.0.0 -- failed: exit status 128"
+
+      assert git!(local, ~w(cat-file -p unicode_17.0.0)) =~ "Update Unicode to version 17.0.0"
+    end
+
+    test "says the commit is there when Git cannot name its author", %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{})
+      put_env("GIT_CONFIG_COUNT", "3")
+      put_env("GIT_CONFIG_KEY_2", "log.date")
+      put_env("GIT_CONFIG_VALUE_2", "bogus")
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Committed unicode_17.0.0 in #{local}, but could not describe it: " <>
+                 "git log -1 --encoding=UTF-8 --format=%an <%ae> unicode_17.0.0 -- failed: exit status 128"
+
+      assert git!(local, ~w(cat-file -p unicode_17.0.0)) =~ "Update Unicode to version 17.0.0"
+    end
+
+    test "names the Unicode file missing from the download and leaves the checkout as it was" do
+      local = Git.path(:elixir)
+      File.rm_rf!(local)
+      on_exit(fn -> File.rm_rf!(local) end)
+
+      unicode_module = Path.join(local, "lib/elixir/unicode/unicode.ex")
+
+      for {path, text} <- [
+            {unicode_module, "  def version, do: {16, 0, 0}\n"},
+            {Path.join(local, "lib/elixir/pages/references/unicode-syntax.md"), ""},
+            {Path.join(local, "lib/elixir/lib/string.ex"), ""}
+          ] do
+        path
+        |> Path.dirname()
+        |> File.mkdir_p!()
+
+        File.write!(path, text)
+      end
+
+      git!(local, ~w(init --quiet --initial-branch main))
+      git!(local, ~w(add .))
+      commit!(local, "main")
+
+      # The checkout stands in for upstream, so it is already up to date.
+      put_env("GIT_CONFIG_COUNT", "1")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+
+      stub_unicode_versions(unicode_zips("UnicodeData.txt"))
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: UnicodeData.txt missing from " <>
+                 "https://www.unicode.org/Public/17.0.0/ucd/UCD.zip"
+
+      assert File.read!(unicode_module) == "  def version, do: {16, 0, 0}\n"
+      assert git!(local, ~w(status --porcelain)) == ""
+      assert git!(local, ["branch", "--format=%(refname:short)"]) == "main"
+    end
+
+    test "shows where the commit is and what to run next", %{tmp_dir: _tmp_dir} do
+      local = Git.path(:elixir)
+      File.rm_rf!(local)
+      File.mkdir_p!(local)
+      on_exit(fn -> File.rm_rf!(local) end)
+
+      git!(local, ~w(init --quiet --initial-branch main))
+      commit!(local, "main")
+      git!(local, ~w(checkout --quiet -b #{@branch}))
+      commit!(local, "Update Fake to version 1")
+      git!(local, ~w(checkout --quiet main))
+
+      Run.run(["elixir", "fake_job"])
+
+      output = printed()
+      assert output =~ ~r/1 file changed/
+      assert output =~ "git -C #{local} show --stat #{@branch}"
+      assert output =~ "Committed #{@branch} as Test <test@example.com> in #{local}"
+      assert output =~ "open the pull request in the fork of some-account:"
+      assert output =~ ~r/^  mix maintenance\.publish elixir fake_job$/m
+    end
+  end
+
+  describe "mix maintenance.publish" do
+    test "rejects an empty --fork" do
+      assert_raise Mix.Error, ~r/--fork needs the GitHub account/, fn ->
+        Publish.run(["elixir", "fake_job", "--fork", ""])
+      end
+    end
+
+    test "rejects an unknown project and an unknown job" do
+      assert_raise Mix.Error, ~r/Unknown project "nope"/, fn ->
+        Publish.run(["nope", "unicode"])
+      end
+
+      assert_raise Mix.Error, ~r/Unknown job for elixir "nope"/, fn ->
+        Publish.run(["elixir", "nope"])
+      end
+    end
+
+    test "rejects an option it does not know" do
+      assert_raise OptionParser.ParseError, fn ->
+        Publish.run(["elixir", "fake_job", "--force"])
+      end
+    end
+
+    test "tells to run maintenance.run first when there is no commit" do
+      checkout = Git.path(:elixir)
+      File.rm_rf!(checkout)
+
+      error =
+        assert_raise Mix.Error, fn ->
+          Publish.run(["elixir", "fake_job"])
+        end
+
+      assert error.message ==
+               "There is no commit to publish for elixir fake_job. " <>
+                 "Run `mix maintenance.run elixir fake_job` first."
+    end
+
+    test "says there is nothing to do when the job is up to date" do
+      set_status({:up_to_date, info()})
+
+      Publish.run(["elixir", "fake_job"])
+
+      assert printed() == "elixir fake_job is up to date. Nothing to do.\n"
+    end
+
+    test "explains how to sync the fork when its main branch has commits upstream lacks",
+         %{tmp_dir: tmp_dir} do
+      context = fork_checkout!(tmp_dir, :elixir, "some-account", @branch)
+
+      ahead =
+        git!(context.local, [
+          "commit-tree",
+          "#{context.main}^{tree}",
+          "-p",
+          context.main,
+          "-m",
+          "ahead"
+        ])
+
+      git!(context.local, ["push", "--quiet", context.fork, "#{ahead}:refs/heads/main"])
+
+      Req.Test.stub(Github, fn
+        %{method: "GET"} = conn -> Req.Test.json(conn, [])
+        %{method: "POST"} -> flunk("a pull request was opened")
+      end)
+
+      error = assert_raise Mix.Error, fn -> Publish.run(["elixir", "fake_job"]) end
+
+      assert error.message =~
+               "some-account/elixir has commits that elixir-lang/elixir does not have"
+
+      assert error.message =~ "Sync fork"
+      assert error.message =~ "Discard commits"
+      assert error.message =~ "mix maintenance.publish elixir fake_job"
+      assert refs(context.fork) == %{"main" => ahead}
+    end
+
+    test "names the repository missing from the fork and pushes nothing", %{tmp_dir: tmp_dir} do
+      context = fork_checkout!(tmp_dir, :elixir, "some-account", @branch)
+      stub_missing_repo("some-account/elixir")
+
+      error = assert_raise Mix.Error, fn -> Publish.run(["elixir", "fake_job"]) end
+
+      assert error.message ==
+               "Could not publish elixir fake_job: some-account/elixir not found on GitHub"
+
+      assert refs(context.fork) == %{}
+    end
+
+    test "tells how to set the token when it is missing" do
+      previous = System.get_env("GITHUB_ACCESS_TOKEN")
+      on_exit(fn -> System.put_env("GITHUB_ACCESS_TOKEN", previous) end)
+      System.delete_env("GITHUB_ACCESS_TOKEN")
+
+      error =
+        assert_raise Mix.Error, fn ->
+          Publish.run(["elixir", "fake_job"])
+        end
+
+      assert error.message =~ "GITHUB_ACCESS_TOKEN is not set"
+    end
+  end
+
+  # An Elixir checkout at Unicode 16.0.0 that also stands in for upstream, so it is already up
+  # to date. Git runs each script in `hooks` as the hook it is named after.
+  defp elixir_checkout!(tmp_dir, hooks) do
+    local = Git.path(:elixir)
+    File.rm_rf!(local)
+    on_exit(fn -> File.rm_rf!(local) end)
+
+    for {path, text} <- [
+          {"lib/elixir/unicode/unicode.ex", "  def version, do: {16, 0, 0}\n"},
+          {"lib/elixir/pages/references/unicode-syntax.md", ""},
+          {"lib/elixir/lib/string.ex", ""}
+        ] do
+      path = Path.join(local, path)
+
+      path
+      |> Path.dirname()
+      |> File.mkdir_p!()
+
+      File.write!(path, text)
+    end
+
+    git!(local, ~w(init --quiet --initial-branch main))
+    git!(local, ~w(add .))
+    commit!(local, "main")
+
+    hooks_path = Path.join(tmp_dir, "hooks")
+    File.mkdir_p!(hooks_path)
+
+    for {name, script} <- hooks do
+      hook = Path.join(hooks_path, name)
+      File.write!(hook, "#!/bin/sh\n#{script}\n")
+      File.chmod!(hook, 0o755)
+    end
+
+    put_env("GIT_CONFIG_COUNT", "2")
+    put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
+    put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+    put_env("GIT_CONFIG_KEY_1", "core.hooksPath")
+    put_env("GIT_CONFIG_VALUE_1", hooks_path)
+
+    stub_unicode_versions(unicode_zips())
+    local
+  end
+
+  defp printed(output \\ "") do
+    receive do
+      {:mix_shell, :info, [line]} -> printed(output <> line <> "\n")
+    after
+      0 -> output
+    end
+  end
+
+  defp stub_pull_request(fork, state \\ "open") do
+    Req.Test.stub(Github, fn conn ->
+      case String.split(conn.request_path, "/") do
+        ["", "repos", ^fork, "elixir", "pulls"] ->
+          Req.Test.json(conn, [%{"html_url" => @pull_request_url, "state" => state}])
+
+        _other ->
+          Req.Test.json(conn, [])
+      end
+    end)
+  end
+
+  defp stub_missing_repo(owner_and_repo) do
+    Req.Test.stub(Github, fn conn ->
+      if conn.request_path == "/repos/#{owner_and_repo}/pulls" do
+        conn
+        |> Plug.Conn.put_status(404)
+        |> Req.Test.json(%{"message" => "Not Found"})
+      else
+        Req.Test.json(conn, [])
+      end
+    end)
+  end
+
+  # Answers the Unicode lookups with 16.0.0 as the current version and 17.0.0 as the latest.
+  # `overrides` answers the request paths it holds instead.
+  defp stub_unicode_versions(overrides \\ %{}) do
+    Req.Test.stub(Unicode, fn conn ->
+      case Map.get(overrides, conn.request_path, conn.request_path) do
+        respond when is_function(respond, 1) ->
+          respond.(conn)
+
+        "/versions/latest/" ->
+          conn
+          |> Plug.Conn.put_resp_header(
+            "location",
+            "https://www.unicode.org/versions/Unicode17.0.0/"
+          )
+          |> Plug.Conn.send_resp(302, "")
+
+        "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" ->
+          Plug.Conn.send_resp(conn, 200, "  def version, do: {16, 0, 0}\n")
+
+        "/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript" ->
+          Plug.Conn.send_resp(conn, 200, ~S|io:put_chars(Fd, "spec_version() -> {16,0}.\n"),|)
+      end
+    end)
+  end
+
+  # Makes `mix maintenance.run` download the UCD of 17.0.0 instead of reading it from the cache.
+  defp forget_cached_ucd() do
+    :UCD
+    |> Unicode.get_path(Version.parse!("17.0.0"))
+    |> File.rm_rf!()
+  end
+
+  # Answers the downloads of the Unicode 17.0.0 files with zips that hold every file the jobs
+  # copy, empty, except `missing`. Removes them from the cache when the test ends.
+  defp unicode_zips(missing \\ nil) do
+    on_exit(fn ->
+      for pid <- Task.Supervisor.children(Maintenance.TaskSupervisor) do
+        ref = Process.monitor(pid)
+        assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 5_000
+      end
+
+      for file_type <- [:UCD, :UTS39] do
+        file_type
+        |> Unicode.get_path(Version.parse!("17.0.0"))
+        |> File.rm_rf!()
+      end
+    end)
+
+    forget_cached_ucd()
+
+    send_zip = fn file_names ->
+      entries = for name <- file_names -- [missing], do: {String.to_charlist(name), ""}
+      {:ok, {_name, zip}} = :zip.create(~c"unicode.zip", entries, [:memory])
+
+      fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/zip", nil)
+        |> Plug.Conn.send_resp(200, zip)
+      end
+    end
+
+    %{
+      "/Public/17.0.0/ucd/UCD.zip" => send_zip.(@ucd_files),
+      "/Public/17.0.0/security/uts39-data-17.0.0.zip" => send_zip.(@uts39_files)
+    }
+  end
+
+  defp set_status(status) do
+    Application.put_env(:maintenance, MaintenanceJob.FakeJob, status: status, notify: self())
+  end
+
+  defp info() do
+    %{current: Version.parse!("0.0.1"), latest: Version.parse!("1.0.0"), branch: @branch}
+  end
+end

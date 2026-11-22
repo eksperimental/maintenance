@@ -9,7 +9,7 @@ defmodule Maintenance.MixProject do
       config_path: "../../config/config.exs",
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
-      elixir: "~> 1.12",
+      elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -36,15 +36,8 @@ defmodule Maintenance.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix_pubsub, "~> 2.0"},
-      {:swoosh, "~> 1.3"},
-      {:req, "~> 0.5.0"},
-      {:tentacat, "~> 2.0"},
-      {:cubdb, "~> 1.1.0"},
-      {:quantum, "~> 3.0"},
-      # {:beam_langs_meta_data,
-      #  git: "https://github.com/eksperimental/beam_langs_meta_data/", branch: "main"}
-      {:beam_langs_meta_data, path: "../../../beam_langs_meta_data"}
+      {:req, "~> 0.7"},
+      {:plug, "~> 1.0", only: :test}
     ]
   end
 

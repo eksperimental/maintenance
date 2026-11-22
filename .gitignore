@@ -23,7 +23,6 @@ erl_crash.dump
 /tmp/
 
 # Cached static files
-/apps/maintenance_web/priv/static/
 
 # Private Info
 /.env

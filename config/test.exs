@@ -1,17 +1,13 @@
 import Config
 
-# We don't run a server during test. If one is required,
-# you can enable the server option below.
-config :maintenance_web, MaintenanceWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
-  secret_key_base: "dHhRR7KdA2GbGm3nQYee1Kiv4qVu7Nxd17vHKpJXf4L/8KN069SSp5MjB/Ps915u",
-  server: false
-
 # Print only warnings and errors during test
-config :logger, level: :warn
+config :logger, level: :warning
 
-# In test we don't send emails.
-config :maintenance, Maintenance.Mailer, adapter: Swoosh.Adapters.Test
+# Keep test repositories away from the real cache in ~/maintenance_data.
+config :maintenance, data_dir: Path.expand("../_build/test/maintenance_data", __DIR__)
 
-# Initialize plugs at runtime for faster test compilation
-config :phoenix, :plug_init_mode, :runtime
+# Route GitHub API requests to Req.Test stubs.
+config :maintenance, :github_req_options, plug: {Req.Test, Maintenance.Github}, retry: false
+
+# Route Unicode data downloads to Req.Test stubs.
+config :maintenance, :unicode_req_options, plug: {Req.Test, MaintenanceJob.Unicode}, retry: false
