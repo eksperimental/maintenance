@@ -59,7 +59,9 @@ defmodule Maintenance.Git do
   """
   @spec commit_author(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
   def commit_author(project, branch) when is_project(project) and is_binary(branch) do
-    args = ["log", "-1", "--format=%an <%ae>", branch, "--"]
+    # Mix cannot print text that is not UTF-8, and i18n.logOutputEncoding can ask Git for another
+    # encoding.
+    args = ["log", "-1", "--encoding=UTF-8", "--format=%an <%ae>", branch, "--"]
 
     case git_cmd(args, cd: path(project)) do
       {author, 0} -> {:ok, String.trim(author)}

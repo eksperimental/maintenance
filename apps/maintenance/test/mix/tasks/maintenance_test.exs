@@ -543,6 +543,19 @@ defmodule Mix.Tasks.MaintenanceTest do
                "Update Unicode to version 17.0.0"
     end
 
+    test "names the author in UTF-8 when Git is set to print logs in another encoding",
+         %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{})
+      put_env("GIT_AUTHOR_NAME", "José")
+      put_env("GIT_CONFIG_COUNT", "3")
+      put_env("GIT_CONFIG_KEY_2", "i18n.logOutputEncoding")
+      put_env("GIT_CONFIG_VALUE_2", "ISO-8859-1")
+
+      Run.run(["elixir", "unicode"])
+
+      assert printed() =~ "Committed unicode_17.0.0 as José <test@example.com> in #{local}"
+    end
+
     test "names the exit status when the commit fails without a word", %{tmp_dir: tmp_dir} do
       elixir_checkout!(tmp_dir, %{"pre-commit" => "exit 1"})
 
@@ -575,7 +588,7 @@ defmodule Mix.Tasks.MaintenanceTest do
 
       assert error.message ==
                "Committed unicode_17.0.0 in #{local}, but could not describe it: " <>
-                 "git log -1 --format=%an <%ae> unicode_17.0.0 -- failed: exit status 128"
+                 "git log -1 --encoding=UTF-8 --format=%an <%ae> unicode_17.0.0 -- failed: exit status 128"
 
       assert git!(local, ~w(cat-file -p unicode_17.0.0)) =~ "Update Unicode to version 17.0.0"
     end
