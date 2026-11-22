@@ -447,7 +447,8 @@ defmodule MaintenanceJob.Unicode do
   end
 
   # Writes the files and commits them on a new branch, then returns to the branch the
-  # checkout was on. If anything fails nothing stays behind: no changes and no branch.
+  # checkout was on. If anything fails, it removes the changes and the branch. When that fails
+  # too, the error is still the step that failed first, and the next run cleans up the checkout.
   defp run_tasks(project, tasks, version) do
     new_branch = branch(version)
 
@@ -458,15 +459,15 @@ defmodule MaintenanceJob.Unicode do
 
   defp commit_tasks(project, tasks, version, new_branch, previous_branch) do
     with :ok <- run_in_parallel(tasks),
-         :ok <- Git.commit(project, commit_msg(version)) do
-      :ok = Git.checkout(project, previous_branch)
-
+         :ok <- Git.commit(project, commit_msg(version)),
+         :ok <- Git.checkout(project, previous_branch) do
       {:ok, :committed, new_branch}
     else
       {:error, _reason} = error ->
-        :ok = Git.discard_changes(project)
-        :ok = Git.checkout(project, previous_branch)
-        :ok = Git.delete_branch(project, new_branch)
+        with :ok <- Git.discard_changes(project),
+             :ok <- Git.checkout(project, previous_branch) do
+          Git.delete_branch(project, new_branch)
+        end
 
         error
     end

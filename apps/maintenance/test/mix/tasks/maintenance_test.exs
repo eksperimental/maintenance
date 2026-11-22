@@ -433,42 +433,14 @@ defmodule Mix.Tasks.MaintenanceTest do
 
     test "says what Git answered when the commit fails and leaves the checkout as it was",
          %{tmp_dir: tmp_dir} do
-      local = Git.path(:elixir)
-      File.rm_rf!(local)
-      on_exit(fn -> File.rm_rf!(local) end)
+      local =
+        elixir_checkout_with_hook!(
+          tmp_dir,
+          "pre-commit",
+          "echo 'rejected by the hook' >&2\nexit 1"
+        )
 
       unicode_module = Path.join(local, "lib/elixir/unicode/unicode.ex")
-
-      for {path, text} <- [
-            {unicode_module, "  def version, do: {16, 0, 0}\n"},
-            {Path.join(local, "lib/elixir/pages/references/unicode-syntax.md"), ""},
-            {Path.join(local, "lib/elixir/lib/string.ex"), ""}
-          ] do
-        path
-        |> Path.dirname()
-        |> File.mkdir_p!()
-
-        File.write!(path, text)
-      end
-
-      git!(local, ~w(init --quiet --initial-branch main))
-      git!(local, ~w(add .))
-      commit!(local, "main")
-
-      hooks = Path.join(tmp_dir, "hooks")
-      File.mkdir_p!(hooks)
-      pre_commit = Path.join(hooks, "pre-commit")
-      File.write!(pre_commit, "#!/bin/sh\necho 'rejected by the hook' >&2\nexit 1\n")
-      File.chmod!(pre_commit, 0o755)
-
-      # The checkout stands in for upstream, so it is already up to date.
-      put_env("GIT_CONFIG_COUNT", "2")
-      put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
-      put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
-      put_env("GIT_CONFIG_KEY_1", "core.hooksPath")
-      put_env("GIT_CONFIG_VALUE_1", hooks)
-
-      stub_unicode_versions(unicode_zips())
 
       error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
 
@@ -479,6 +451,32 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert File.read!(unicode_module) == "  def version, do: {16, 0, 0}\n"
       assert git!(local, ~w(status --porcelain)) == ""
       assert git!(local, ["branch", "--format=%(refname:short)"]) == "main"
+    end
+
+    test "says what Git answered when the checkout cannot return to the main branch after the commit",
+         %{tmp_dir: tmp_dir} do
+      local = elixir_checkout_with_hook!(tmp_dir, "post-commit", "touch .git/index.lock")
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git checkout main failed: " <>
+                 "fatal: Unable to create '#{local}/.git/index.lock': File exists."
+    end
+
+    test "says what Git answered when the commit fails even if the checkout cannot be undone",
+         %{tmp_dir: tmp_dir} do
+      elixir_checkout_with_hook!(
+        tmp_dir,
+        "pre-commit",
+        "touch .git/index.lock\necho 'rejected by the hook' >&2\nexit 1"
+      )
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git commit failed: " <>
+                 "rejected by the hook"
     end
 
     test "names the Unicode file missing from the download and leaves the checkout as it was" do
@@ -646,6 +644,47 @@ defmodule Mix.Tasks.MaintenanceTest do
 
       assert error.message =~ "GITHUB_ACCESS_TOKEN is not set"
     end
+  end
+
+  # An Elixir checkout at Unicode 16.0.0 that also stands in for upstream, so it is already up
+  # to date. Git runs `script` as its `hook`.
+  defp elixir_checkout_with_hook!(tmp_dir, hook, script) do
+    local = Git.path(:elixir)
+    File.rm_rf!(local)
+    on_exit(fn -> File.rm_rf!(local) end)
+
+    for {path, text} <- [
+          {"lib/elixir/unicode/unicode.ex", "  def version, do: {16, 0, 0}\n"},
+          {"lib/elixir/pages/references/unicode-syntax.md", ""},
+          {"lib/elixir/lib/string.ex", ""}
+        ] do
+      path = Path.join(local, path)
+
+      path
+      |> Path.dirname()
+      |> File.mkdir_p!()
+
+      File.write!(path, text)
+    end
+
+    git!(local, ~w(init --quiet --initial-branch main))
+    git!(local, ~w(add .))
+    commit!(local, "main")
+
+    hooks = Path.join(tmp_dir, "hooks")
+    File.mkdir_p!(hooks)
+    hook = Path.join(hooks, hook)
+    File.write!(hook, "#!/bin/sh\n#{script}\n")
+    File.chmod!(hook, 0o755)
+
+    put_env("GIT_CONFIG_COUNT", "2")
+    put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
+    put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+    put_env("GIT_CONFIG_KEY_1", "core.hooksPath")
+    put_env("GIT_CONFIG_VALUE_1", hooks)
+
+    stub_unicode_versions(unicode_zips())
+    local
   end
 
   defp printed(output \\ "") do
