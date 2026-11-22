@@ -132,7 +132,9 @@ download fails, `run` stops with `could not download <url> (HTTP <status>)` or
 file the job copies, `run` stops with `<file> missing from <url>` before it touches the
 checkout. When Git cannot clone or update the
 checkout, for example because GitHub cannot be reached, `run` stops with the Git command
-and the first line of what Git said, such as `git clone ... failed: fatal: unable to access ...`.
+and the first line of what Git said, such as `git clone ... failed: fatal: unable to access ...`,
+or its exit status when Git says nothing. When the checkout already has the files the job
+writes, `run` stops with `nothing to commit, the checkout already has the files the job writes`.
 
 ### 3. Publish it
 

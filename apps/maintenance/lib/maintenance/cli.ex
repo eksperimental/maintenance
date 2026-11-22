@@ -65,6 +65,9 @@ defmodule Maintenance.CLI do
 
   def describe_error({:git_failed, command, output}), do: "#{command} failed: #{output}"
 
+  def describe_error(:nothing_to_commit),
+    do: "nothing to commit, the checkout already has the files the job writes"
+
   def describe_error(error = %Req.TransportError{}),
     do: "network error (" <> Exception.message(error) <> ")"
 

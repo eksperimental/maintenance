@@ -33,7 +33,7 @@ defmodule Maintenance.Git do
 
     case git_cmd(args, cd: repo_path, stderr_to_stdout: true) do
       {_output, status} when status in [0, 5] -> :ok
-      {output, _status} -> git_failed(args, output)
+      {output, status} -> git_failed(args, output, status)
     end
   end
 
@@ -78,7 +78,7 @@ defmodule Maintenance.Git do
 
     case git_cmd(args, stderr_to_stdout: true) do
       {output, 0} -> find_commit_id(output, ref)
-      {output, _status} -> git_failed(args, output)
+      {output, status} -> git_failed(args, output, status)
     end
   end
 
@@ -182,17 +182,23 @@ defmodule Maintenance.Git do
   defp git(args, dir) do
     case git_cmd(args, cd: dir, stderr_to_stdout: true) do
       {_output, 0} -> :ok
-      {output, _status} -> git_failed(args, output)
+      {output, status} -> git_failed(args, output, status)
     end
   end
 
-  defp git_failed(args, output) do
-    [first_line | _rest] =
-      output
-      |> String.trim()
-      |> String.split("\n")
+  # A hook can fail without a word, which leaves only the exit status to tell.
+  defp git_failed(args, output, status) do
+    reason =
+      case String.trim(output) do
+        "" ->
+          "exit status #{status}"
 
-    {:error, {:git_failed, Enum.join(["git" | args], " "), first_line}}
+        output ->
+          [first_line | _rest] = String.split(output, "\n")
+          first_line
+      end
+
+    {:error, {:git_failed, Enum.join(["git" | args], " "), reason}}
   end
 
   @doc """
@@ -243,12 +249,25 @@ defmodule Maintenance.Git do
       message
     ]
 
-    with :ok <- git(~w(add -- .), git_path) do
+    with :ok <- git(~w(add -- .), git_path),
+         :ok <- check_staged(git_path) do
       case git_cmd(args, cd: git_path, stderr_to_stdout: true) do
         {_output, 0} -> :ok
         # The message would fill the error, so it names only the subcommand.
-        {output, _status} -> git_failed(~w(commit), output)
+        {output, status} -> git_failed(~w(commit), output, status)
       end
+    end
+  end
+
+  # With nothing staged, Git answers with the status of the checkout, whose first line is the
+  # branch it is on.
+  defp check_staged(git_path) do
+    args = ~w(diff --cached --quiet --no-ext-diff)
+
+    case git_cmd(args, cd: git_path, stderr_to_stdout: true) do
+      {_output, 0} -> {:error, :nothing_to_commit}
+      {_output, 1} -> :ok
+      {output, status} -> git_failed(args, output, status)
     end
   end
 

@@ -434,11 +434,7 @@ defmodule Mix.Tasks.MaintenanceTest do
     test "says what Git answered when the commit fails and leaves the checkout as it was",
          %{tmp_dir: tmp_dir} do
       local =
-        elixir_checkout_with_hook!(
-          tmp_dir,
-          "pre-commit",
-          "echo 'rejected by the hook' >&2\nexit 1"
-        )
+        elixir_checkout!(tmp_dir, %{"pre-commit" => "echo 'rejected by the hook' >&2\nexit 1"})
 
       unicode_module = Path.join(local, "lib/elixir/unicode/unicode.ex")
 
@@ -455,7 +451,7 @@ defmodule Mix.Tasks.MaintenanceTest do
 
     test "says what Git answered when the checkout cannot return to the main branch after the commit",
          %{tmp_dir: tmp_dir} do
-      local = elixir_checkout_with_hook!(tmp_dir, "post-commit", "touch .git/index.lock")
+      local = elixir_checkout!(tmp_dir, %{"post-commit" => "touch .git/index.lock"})
 
       error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
 
@@ -466,17 +462,56 @@ defmodule Mix.Tasks.MaintenanceTest do
 
     test "says what Git answered when the commit fails even if the checkout cannot be undone",
          %{tmp_dir: tmp_dir} do
-      elixir_checkout_with_hook!(
-        tmp_dir,
-        "pre-commit",
-        "touch .git/index.lock\necho 'rejected by the hook' >&2\nexit 1"
-      )
+      elixir_checkout!(tmp_dir, %{
+        "pre-commit" => "touch .git/index.lock\necho 'rejected by the hook' >&2\nexit 1"
+      })
 
       error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
 
       assert error.message ==
                "Could not build the commit for elixir unicode: git commit failed: " <>
                  "rejected by the hook"
+    end
+
+    test "says when the checkout already has the files of the update", %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{})
+      Run.run(["elixir", "unicode"])
+
+      # Upstream merged the update, while GitHub still serves the old version of its file.
+      git!(local, ~w(merge --quiet --ff-only unicode_17.0.0))
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: " <>
+                 "nothing to commit, the checkout already has the files the job writes"
+
+      assert git!(local, ["branch", "--format=%(refname:short)"]) == "main"
+    end
+
+    test "commits the update when Git is set to compare files with an external tool",
+         %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{})
+      # A tool Git trusts to tell whether files differ, which finds that they never do.
+      put_env("GIT_CONFIG_COUNT", "4")
+      put_env("GIT_CONFIG_KEY_2", "diff.external")
+      put_env("GIT_CONFIG_VALUE_2", "true")
+      put_env("GIT_CONFIG_KEY_3", "diff.trustExitCode")
+      put_env("GIT_CONFIG_VALUE_3", "true")
+
+      Run.run(["elixir", "unicode"])
+
+      assert git!(local, ~w(log -1 --format=%s unicode_17.0.0)) ==
+               "Update Unicode to version 17.0.0"
+    end
+
+    test "names the exit status when the commit fails without a word", %{tmp_dir: tmp_dir} do
+      elixir_checkout!(tmp_dir, %{"pre-commit" => "exit 1"})
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git commit failed: exit status 1"
     end
 
     test "names the Unicode file missing from the download and leaves the checkout as it was" do
@@ -647,8 +682,8 @@ defmodule Mix.Tasks.MaintenanceTest do
   end
 
   # An Elixir checkout at Unicode 16.0.0 that also stands in for upstream, so it is already up
-  # to date. Git runs `script` as its `hook`.
-  defp elixir_checkout_with_hook!(tmp_dir, hook, script) do
+  # to date. Git runs each script in `hooks` as the hook it is named after.
+  defp elixir_checkout!(tmp_dir, hooks) do
     local = Git.path(:elixir)
     File.rm_rf!(local)
     on_exit(fn -> File.rm_rf!(local) end)
@@ -671,17 +706,20 @@ defmodule Mix.Tasks.MaintenanceTest do
     git!(local, ~w(add .))
     commit!(local, "main")
 
-    hooks = Path.join(tmp_dir, "hooks")
-    File.mkdir_p!(hooks)
-    hook = Path.join(hooks, hook)
-    File.write!(hook, "#!/bin/sh\n#{script}\n")
-    File.chmod!(hook, 0o755)
+    hooks_path = Path.join(tmp_dir, "hooks")
+    File.mkdir_p!(hooks_path)
+
+    for {name, script} <- hooks do
+      hook = Path.join(hooks_path, name)
+      File.write!(hook, "#!/bin/sh\n#{script}\n")
+      File.chmod!(hook, 0o755)
+    end
 
     put_env("GIT_CONFIG_COUNT", "2")
     put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
     put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
     put_env("GIT_CONFIG_KEY_1", "core.hooksPath")
-    put_env("GIT_CONFIG_VALUE_1", hooks)
+    put_env("GIT_CONFIG_VALUE_1", hooks_path)
 
     stub_unicode_versions(unicode_zips())
     local
