@@ -456,8 +456,33 @@ defmodule Mix.Tasks.MaintenanceTest do
       error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
 
       assert error.message ==
-               "Could not build the commit for elixir unicode: git checkout main failed: " <>
+               "Could not build the commit for elixir unicode: git checkout --quiet main failed: " <>
                  "fatal: Unable to create '#{local}/.git/index.lock': File exists."
+    end
+
+    test "says what the post-checkout hook answered when the checkout cannot return to the main branch",
+         %{tmp_dir: tmp_dir} do
+      # Git passes the commits before and after the checkout, which differ only on the way back.
+      elixir_checkout!(tmp_dir, %{
+        "post-checkout" => ~s([ "$1" = "$2" ] && exit 0\necho 'rejected by the hook' >&2\nexit 1)
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: " <>
+                 "git checkout --quiet main failed: rejected by the hook"
+    end
+
+    test "names the exit status when the post-checkout hook fails without a word",
+         %{tmp_dir: tmp_dir} do
+      elixir_checkout!(tmp_dir, %{"post-checkout" => ~s([ "$1" = "$2" ] && exit 0\nexit 1)})
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: " <>
+                 "git checkout --quiet main failed: exit status 1"
     end
 
     test "says what Git answered when the commit fails even if the checkout cannot be undone",

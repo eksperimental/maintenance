@@ -273,11 +273,11 @@ defmodule Maintenance.Git do
 
   @spec checkout(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout(project, branch) when is_project(project) and is_binary(branch),
-    do: git(["checkout", branch], path(project))
+    do: git(["checkout", "--quiet", branch], path(project))
 
   @spec checkout_new_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout_new_branch(project, branch) when is_project(project) and is_binary(branch),
-    do: git(["checkout", "-b", branch], path(project))
+    do: git(["checkout", "--quiet", "-b", branch], path(project))
 
   @spec branch_exists?(Maintenance.project(), branch) :: boolean
   def branch_exists?(project, branch) when is_project(project) and is_binary(branch) do
