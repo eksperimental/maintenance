@@ -11,32 +11,29 @@ defmodule Maintenance.Git do
   @type branch :: String.t()
 
   @doc false
-  @spec config(Maintenance.project()) ::
-          :ok | {:error, {Collectable.t(), exit_status :: non_neg_integer()}}
+  @spec config(Maintenance.project()) :: :ok | {:error, term()}
   def config(project) when is_project(project) do
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
-    with {_response_string, 0} <- git_cmd(~w(config pull.ff only), cd: repo_path),
+    with :ok <- git(~w(config pull.ff only), repo_path),
          :ok <- unset_local(repo_path, "user.name"),
          :ok <- unset_local(repo_path, "user.email"),
-         _response_string <-
-           git_cmd(~w(config advice.addIgnoredFile false), cd: repo_path),
-         _response_string <- git_cmd(~w(config fetch.fsckobjects true), cd: repo_path),
-         _response_string <-
-           git_cmd(~w(config transfer.fsckobjects true), cd: repo_path),
-         _response_string <- git_cmd(~w(config receive.fsckobjects true), cd: repo_path) do
-      :ok
-    else
-      error -> {:error, error}
+         :ok <- git(~w(config advice.addIgnoredFile false), repo_path),
+         :ok <- git(~w(config fetch.fsckobjects true), repo_path),
+         :ok <- git(~w(config transfer.fsckobjects true), repo_path) do
+      git(~w(config receive.fsckobjects true), repo_path)
     end
   end
 
   # Older versions wrote an identity into the checkout. Commits use the runner's own one.
+  # Status 5 means the checkout has none.
   defp unset_local(repo_path, key) do
-    case git_cmd(["config", "--local", "--unset-all", key], cd: repo_path) do
-      {_response_string, status} when status in [0, 5] -> :ok
-      error -> {:error, error}
+    args = ["config", "--local", "--unset-all", key]
+
+    case git_cmd(args, cd: repo_path, stderr_to_stdout: true) do
+      {_output, status} when status in [0, 5] -> :ok
+      {output, _status} -> git_failed(args, output)
     end
   end
 
@@ -182,17 +179,18 @@ defmodule Maintenance.Git do
   # Runs Git in `dir`. A failure names the command and the first line of what Git said.
   defp git(args, dir) do
     case git_cmd(args, cd: dir, stderr_to_stdout: true) do
-      {_output, 0} ->
-        :ok
-
-      {output, _status} ->
-        [first_line | _rest] =
-          output
-          |> String.trim()
-          |> String.split("\n")
-
-        {:error, {:git_failed, Enum.join(["git" | args], " "), first_line}}
+      {_output, 0} -> :ok
+      {output, _status} -> git_failed(args, output)
     end
+  end
+
+  defp git_failed(args, output) do
+    [first_line | _rest] =
+      output
+      |> String.trim()
+      |> String.split("\n")
+
+    {:error, {:git_failed, Enum.join(["git" | args], " "), first_line}}
   end
 
   @doc """
@@ -231,25 +229,24 @@ defmodule Maintenance.Git do
 
   @spec commit(Maintenance.project(), String.t()) :: :ok | {:error, term}
   def commit(project, message) when is_project(project) when is_binary(message) do
-    with git_path <- path(project),
-         {_response_string, 0} <- git_cmd(~w(add -- .), cd: git_path),
-         {_response_string, 0} <-
-           git_cmd(
-             [
-               "-c",
-               "commit.gpgsign=false",
-               "-c",
-               "user.useConfigOnly=true",
-               "commit",
-               "-m",
-               message
-             ],
-             cd: git_path
-           ) do
-      :ok
-    else
-      error ->
-        {:error, error}
+    git_path = path(project)
+
+    args = [
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "user.useConfigOnly=true",
+      "commit",
+      "-m",
+      message
+    ]
+
+    with :ok <- git(~w(add -- .), git_path) do
+      case git_cmd(args, cd: git_path, stderr_to_stdout: true) do
+        {_output, 0} -> :ok
+        # The message would fill the error, so it names only the subcommand.
+        {output, _status} -> git_failed(~w(commit), output)
+      end
     end
   end
 

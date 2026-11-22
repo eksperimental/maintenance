@@ -385,6 +385,87 @@ defmodule Mix.Tasks.MaintenanceTest do
                  "fatal: Unable to create '#{lock}': File exists."
     end
 
+    test "says what Git answered when the checkout cannot be configured", %{tmp_dir: tmp_dir} do
+      local = Git.path(:elixir)
+      File.rm_rf!(local)
+      File.mkdir_p!(local)
+      on_exit(fn -> File.rm_rf!(local) end)
+
+      git!(local, ~w(init --quiet --initial-branch main))
+      commit!(local, "main")
+
+      # Upstream has a commit the checkout lacks, so run updates the checkout.
+      upstream = Path.join(tmp_dir, "upstream")
+      git!(tmp_dir, ["clone", "--quiet", local, upstream])
+      commit!(upstream, "newer")
+
+      put_env("GIT_CONFIG_COUNT", "1")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{upstream}.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+
+      # A Git process that died while it wrote the config leaves its lock behind.
+      lock = Path.join(local, ".git/config.lock")
+      File.write!(lock, "")
+
+      stub_unicode_versions(unicode_zips())
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git config pull.ff only failed: " <>
+                 "error: could not lock config file .git/config: File exists"
+    end
+
+    test "says what Git answered when the commit fails and leaves the checkout as it was",
+         %{tmp_dir: tmp_dir} do
+      local = Git.path(:elixir)
+      File.rm_rf!(local)
+      on_exit(fn -> File.rm_rf!(local) end)
+
+      unicode_module = Path.join(local, "lib/elixir/unicode/unicode.ex")
+
+      for {path, text} <- [
+            {unicode_module, "  def version, do: {16, 0, 0}\n"},
+            {Path.join(local, "lib/elixir/pages/references/unicode-syntax.md"), ""},
+            {Path.join(local, "lib/elixir/lib/string.ex"), ""}
+          ] do
+        path
+        |> Path.dirname()
+        |> File.mkdir_p!()
+
+        File.write!(path, text)
+      end
+
+      git!(local, ~w(init --quiet --initial-branch main))
+      git!(local, ~w(add .))
+      commit!(local, "main")
+
+      hooks = Path.join(tmp_dir, "hooks")
+      File.mkdir_p!(hooks)
+      pre_commit = Path.join(hooks, "pre-commit")
+      File.write!(pre_commit, "#!/bin/sh\necho 'rejected by the hook' >&2\nexit 1\n")
+      File.chmod!(pre_commit, 0o755)
+
+      # The checkout stands in for upstream, so it is already up to date.
+      put_env("GIT_CONFIG_COUNT", "2")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+      put_env("GIT_CONFIG_KEY_1", "core.hooksPath")
+      put_env("GIT_CONFIG_VALUE_1", hooks)
+
+      stub_unicode_versions(unicode_zips())
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git commit failed: " <>
+                 "rejected by the hook"
+
+      assert File.read!(unicode_module) == "  def version, do: {16, 0, 0}\n"
+      assert git!(local, ~w(status --porcelain)) == ""
+      assert git!(local, ["branch", "--format=%(refname:short)"]) == "main"
+    end
+
     test "names the Unicode file missing from the download and leaves the checkout as it was" do
       local = Git.path(:elixir)
       File.rm_rf!(local)
