@@ -100,6 +100,33 @@ defmodule Maintenance.GitTest do
     end
   end
 
+  describe "a cache that is inside another repository" do
+    test "keeps Git from changing that repository when the checkout is missing" do
+      outer = Maintenance.cache_path()
+
+      on_exit(fn ->
+        Enum.each(~w(.git file.txt untracked.txt), &File.rm_rf!(Path.join(outer, &1)))
+      end)
+
+      git!(outer, ~w(init --quiet --initial-branch main))
+      commit!(outer, "committed")
+      file = Path.join(outer, "file.txt")
+      untracked = Path.join(outer, "untracked.txt")
+      File.write!(file, "edited")
+      File.write!(untracked, "untracked")
+
+      checkout = Git.path(:otp)
+      File.rm_rf!(checkout)
+      File.mkdir_p!(checkout)
+      on_exit(fn -> File.rm_rf!(checkout) end)
+
+      assert {:error, _reason} = Git.discard_changes(:otp)
+
+      assert File.read!(file) == "edited"
+      assert File.read!(untracked) == "untracked"
+    end
+  end
+
   # Makes every git command in the test send `url` to `replacement`.
   defp redirect_url(url, replacement) do
     variables = %{

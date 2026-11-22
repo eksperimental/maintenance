@@ -17,15 +17,15 @@ defmodule Maintenance.Git do
     repo_path = path(project)
     :ok = File.mkdir_p!(repo_path)
 
-    with {_response_string, 0} <- System.cmd("git", ~w(config pull.ff only), cd: repo_path),
+    with {_response_string, 0} <- git_cmd(~w(config pull.ff only), cd: repo_path),
          :ok <- unset_local(repo_path, "user.name"),
          :ok <- unset_local(repo_path, "user.email"),
          _response_string <-
-           System.cmd("git", ~w(config advice.addIgnoredFile false), cd: repo_path),
-         _response_string <- System.cmd("git", ~w(config fetch.fsckobjects true), cd: repo_path),
+           git_cmd(~w(config advice.addIgnoredFile false), cd: repo_path),
+         _response_string <- git_cmd(~w(config fetch.fsckobjects true), cd: repo_path),
          _response_string <-
-           System.cmd("git", ~w(config transfer.fsckobjects true), cd: repo_path),
-         _response_string <- System.cmd("git", ~w(config receive.fsckobjects true), cd: repo_path) do
+           git_cmd(~w(config transfer.fsckobjects true), cd: repo_path),
+         _response_string <- git_cmd(~w(config receive.fsckobjects true), cd: repo_path) do
       :ok
     else
       error -> {:error, error}
@@ -34,7 +34,7 @@ defmodule Maintenance.Git do
 
   # Older versions wrote an identity into the checkout. Commits use the runner's own one.
   defp unset_local(repo_path, key) do
-    case System.cmd("git", ["config", "--local", "--unset-all", key], cd: repo_path) do
+    case git_cmd(["config", "--local", "--unset-all", key], cd: repo_path) do
       {_response_string, status} when status in [0, 5] -> :ok
       error -> {:error, error}
     end
@@ -48,7 +48,7 @@ defmodule Maintenance.Git do
   def identity_set?() do
     Enum.all?(~w(GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT), fn variable ->
       {_output, status} =
-        System.cmd("git", ["-c", "user.useConfigOnly=true", "var", variable],
+        git_cmd(["-c", "user.useConfigOnly=true", "var", variable],
           cd: System.tmp_dir!(),
           stderr_to_stdout: true
         )
@@ -62,7 +62,7 @@ defmodule Maintenance.Git do
   """
   @spec commit_author(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
   def commit_author(project, branch) when is_project(project) and is_binary(branch) do
-    case System.cmd("git", ["log", "-1", "--format=%an <%ae>", branch, "--"], cd: path(project)) do
+    case git_cmd(["log", "-1", "--format=%an <%ae>", branch, "--"], cd: path(project)) do
       {author, 0} -> {:ok, String.trim(author)}
       error -> {:error, error}
     end
@@ -76,8 +76,7 @@ defmodule Maintenance.Git do
     # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
 
     response =
-      System.cmd(
-        "git",
+      git_cmd(
         ~w(ls-remote #{Project.git_url(project)} refs/heads/#{Project.config!(project, :main_branch)}),
         stderr_to_stdout: true
       )
@@ -174,9 +173,16 @@ defmodule Maintenance.Git do
     end
   end
 
+  # In a folder that is not a repository, Git runs the command on the first repository above it.
+  # Stopping the search at the cache keeps a missing checkout from reaching a repository that
+  # holds the cache.
+  defp git_cmd(args, opts) do
+    System.cmd("git", args, [env: [{"GIT_CEILING_DIRECTORIES", cache_path()}]] ++ opts)
+  end
+
   # Runs Git in `dir`. A failure names the command and the first line of what Git said.
   defp git(args, dir) do
-    case System.cmd("git", args, cd: dir, stderr_to_stdout: true) do
+    case git_cmd(args, cd: dir, stderr_to_stdout: true) do
       {_output, 0} ->
         :ok
 
@@ -203,7 +209,7 @@ defmodule Maintenance.Git do
 
     if repo?(path(project)) do
       response =
-        System.cmd("git", ~w(rev-parse refs/heads/#{config.main_branch}), cd: path(project))
+        git_cmd(~w(rev-parse refs/heads/#{config.main_branch}), cd: path(project))
 
       case response do
         {commit_id, 0} -> {:ok, String.trim(commit_id)}
@@ -218,7 +224,7 @@ defmodule Maintenance.Git do
   def repo?(path) do
     git_dir = Path.join(path, ".git")
 
-    case File.dir?(git_dir) and System.cmd("git", ~w(rev-parse --is-inside-git-dir), cd: git_dir) do
+    case File.dir?(git_dir) and git_cmd(~w(rev-parse --is-inside-git-dir), cd: git_dir) do
       {string, 0} -> String.trim(string) == "true"
       _other -> false
     end
@@ -227,10 +233,9 @@ defmodule Maintenance.Git do
   @spec commit(Maintenance.project(), String.t()) :: :ok | {:error, term}
   def commit(project, message) when is_project(project) when is_binary(message) do
     with git_path <- path(project),
-         {_response_string, 0} <- System.cmd("git", ~w(add -- .), cd: git_path),
+         {_response_string, 0} <- git_cmd(~w(add -- .), cd: git_path),
          {_response_string, 0} <-
-           System.cmd(
-             "git",
+           git_cmd(
              [
                "-c",
                "commit.gpgsign=false",
@@ -252,7 +257,7 @@ defmodule Maintenance.Git do
   @spec checkout(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
-         {_response_string, 0} <- System.cmd("git", ["checkout", branch], cd: git_path) do
+         {_response_string, 0} <- git_cmd(["checkout", branch], cd: git_path) do
       :ok
     else
       error -> {:error, error}
@@ -262,7 +267,7 @@ defmodule Maintenance.Git do
   @spec checkout_new_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def checkout_new_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
-         {_response_string, 0} <- System.cmd("git", ["checkout", "-b", branch], cd: git_path) do
+         {_response_string, 0} <- git_cmd(["checkout", "-b", branch], cd: git_path) do
       :ok
     else
       error -> {:error, error}
@@ -272,7 +277,7 @@ defmodule Maintenance.Git do
   @spec get_branch(Maintenance.project()) :: {:ok, branch} | {:error, term()}
   def get_branch(project) when is_project(project) do
     with git_path <- path(project),
-         {current_branch, 0} <- System.cmd("git", ~w(branch --show-current), cd: git_path) do
+         {current_branch, 0} <- git_cmd(~w(branch --show-current), cd: git_path) do
       {:ok, String.trim(current_branch)}
     else
       error -> {:error, error}
@@ -283,7 +288,7 @@ defmodule Maintenance.Git do
   def branch_exists?(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
          {_response_string, 0} <-
-           System.cmd("git", ["show-ref", "--quiet", "refs/heads/#{branch}"], cd: git_path) do
+           git_cmd(["show-ref", "--quiet", "refs/heads/#{branch}"], cd: git_path) do
       true
     else
       _other -> false
@@ -300,7 +305,7 @@ defmodule Maintenance.Git do
 
     with true <- File.dir?(checkout),
          {count, 0} <-
-           System.cmd("git", ["rev-list", "--count", "#{main_branch}..#{branch}", "--"],
+           git_cmd(["rev-list", "--count", "#{main_branch}..#{branch}", "--"],
              cd: checkout,
              stderr_to_stdout: true
            ) do
@@ -317,7 +322,7 @@ defmodule Maintenance.Git do
   def diff_stat(project, branch) when is_project(project) and is_binary(branch) do
     main_branch = Project.config!(project, :main_branch)
 
-    case System.cmd("git", ["diff", "--stat", "#{main_branch}...#{branch}", "--"],
+    case git_cmd(["diff", "--stat", "#{main_branch}...#{branch}", "--"],
            cd: path(project)
          ) do
       {stat, 0} -> {:ok, String.trim_trailing(stat)}
@@ -330,7 +335,7 @@ defmodule Maintenance.Git do
   """
   @spec commit_subject(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
   def commit_subject(project, branch) when is_project(project) and is_binary(branch) do
-    case System.cmd("git", ["log", "-1", "--format=%s", branch, "--"], cd: path(project)) do
+    case git_cmd(["log", "-1", "--format=%s", branch, "--"], cd: path(project)) do
       {subject, 0} -> {:ok, String.trim(subject)}
       error -> {:error, error}
     end
@@ -350,7 +355,7 @@ defmodule Maintenance.Git do
     main_branch = Project.config!(project, :main_branch)
     refspecs = ["+HEAD", "refs/heads/#{main_branch}:refs/heads/#{main_branch}"]
 
-    case System.cmd("git", ["push", "--porcelain", "--atomic", auth_url | refspecs],
+    case git_cmd(["push", "--porcelain", "--atomic", auth_url | refspecs],
            cd: path(project),
            stderr_to_stdout: true
          ) do
@@ -372,8 +377,8 @@ defmodule Maintenance.Git do
   @spec discard_changes(Maintenance.project()) :: :ok | {:error, term()}
   def discard_changes(project) when is_project(project) do
     with git_path <- path(project),
-         {_response_string, 0} <- System.cmd("git", ~w(reset --hard HEAD), cd: git_path),
-         {_response_string, 0} <- System.cmd("git", ~w(clean -f -d), cd: git_path) do
+         {_response_string, 0} <- git_cmd(~w(reset --hard HEAD), cd: git_path),
+         {_response_string, 0} <- git_cmd(~w(clean -f -d), cd: git_path) do
       :ok
     else
       error -> {:error, error}
@@ -383,7 +388,7 @@ defmodule Maintenance.Git do
   @spec delete_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
   def delete_branch(project, branch) when is_project(project) and is_binary(branch) do
     with git_path <- path(project),
-         {_response_string, 0} <- System.cmd("git", ["branch", "-D", branch], cd: git_path) do
+         {_response_string, 0} <- git_cmd(["branch", "-D", branch], cd: git_path) do
       :ok
     else
       error -> {:error, error}
