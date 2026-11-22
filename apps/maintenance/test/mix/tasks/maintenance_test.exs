@@ -485,6 +485,19 @@ defmodule Mix.Tasks.MaintenanceTest do
                  "git checkout --quiet main failed: exit status 1"
     end
 
+    test "replaces what is not UTF-8 in what Git answered, which Mix cannot print",
+         %{tmp_dir: tmp_dir} do
+      elixir_checkout!(tmp_dir, %{
+        "pre-commit" => "printf 'rejected \\377 by the hook\\n' >&2\nexit 1"
+      })
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git commit failed: " <>
+                 "rejected \u{FFFD} by the hook"
+    end
+
     test "says what Git answered when the commit fails even if the checkout cannot be undone",
          %{tmp_dir: tmp_dir} do
       elixir_checkout!(tmp_dir, %{

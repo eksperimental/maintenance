@@ -191,6 +191,13 @@ defmodule Maintenance.Git do
   # A hook can fail without a word, and some steps leave what Git says on stderr so that it stays
   # out of their result, which leaves only the exit status to tell.
   defp git_failed(args, output, status) do
+    # Mix cannot print an error that is not UTF-8, and Git passes on whatever bytes a hook writes.
+    # String.replace_invalid/1 would do this, but it needs Elixir 1.16.
+    output =
+      output
+      |> String.codepoints()
+      |> Enum.map_join(fn char -> if String.valid?(char), do: char, else: "\u{FFFD}" end)
+
     reason =
       case String.trim(output) do
         "" ->
