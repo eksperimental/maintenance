@@ -358,6 +358,33 @@ defmodule Mix.Tasks.MaintenanceTest do
                  "failed: fatal: '#{tmp_dir}/missing' does not appear to be a git repository"
     end
 
+    test "says what Git answered when the cached checkout cannot be reset" do
+      local = Git.path(:elixir)
+      File.rm_rf!(local)
+      File.mkdir_p!(local)
+      on_exit(fn -> File.rm_rf!(local) end)
+
+      git!(local, ~w(init --quiet --initial-branch main))
+      commit!(local, "main")
+
+      # The checkout stands in for upstream, so it is already up to date.
+      put_env("GIT_CONFIG_COUNT", "1")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+
+      # A Git process that died while it wrote the index leaves its lock behind.
+      lock = Path.join(local, ".git/index.lock")
+      File.write!(lock, "")
+
+      stub_unicode_versions(unicode_zips())
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: git reset --hard HEAD failed: " <>
+                 "fatal: Unable to create '#{lock}': File exists."
+    end
+
     test "names the Unicode file missing from the download and leaves the checkout as it was" do
       local = Git.path(:elixir)
       File.rm_rf!(local)

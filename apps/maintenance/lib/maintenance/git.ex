@@ -165,8 +165,7 @@ defmodule Maintenance.Git do
     main_branch = Project.config!(project, :main_branch)
 
     with :ok <- config(project),
-         :ok <- git(~w(reset --hard HEAD), git_path),
-         :ok <- git(~w(clean -f -d), git_path),
+         :ok <- discard_changes(project),
          :ok <- git(~w(fetch --quiet #{remote} #{main_branch} -f), git_path),
          :ok <- git(~w(checkout --quiet -f #{main_branch}), git_path) do
       git(~w(reset --quiet --hard FETCH_HEAD), git_path)
@@ -255,34 +254,12 @@ defmodule Maintenance.Git do
   end
 
   @spec checkout(Maintenance.project(), branch) :: :ok | {:error, term()}
-  def checkout(project, branch) when is_project(project) and is_binary(branch) do
-    with git_path <- path(project),
-         {_response_string, 0} <- git_cmd(["checkout", branch], cd: git_path) do
-      :ok
-    else
-      error -> {:error, error}
-    end
-  end
+  def checkout(project, branch) when is_project(project) and is_binary(branch),
+    do: git(["checkout", branch], path(project))
 
   @spec checkout_new_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
-  def checkout_new_branch(project, branch) when is_project(project) and is_binary(branch) do
-    with git_path <- path(project),
-         {_response_string, 0} <- git_cmd(["checkout", "-b", branch], cd: git_path) do
-      :ok
-    else
-      error -> {:error, error}
-    end
-  end
-
-  @spec get_branch(Maintenance.project()) :: {:ok, branch} | {:error, term()}
-  def get_branch(project) when is_project(project) do
-    with git_path <- path(project),
-         {current_branch, 0} <- git_cmd(~w(branch --show-current), cd: git_path) do
-      {:ok, String.trim(current_branch)}
-    else
-      error -> {:error, error}
-    end
-  end
+  def checkout_new_branch(project, branch) when is_project(project) and is_binary(branch),
+    do: git(["checkout", "-b", branch], path(project))
 
   @spec branch_exists?(Maintenance.project(), branch) :: boolean
   def branch_exists?(project, branch) when is_project(project) and is_binary(branch) do
@@ -376,24 +353,16 @@ defmodule Maintenance.Git do
   """
   @spec discard_changes(Maintenance.project()) :: :ok | {:error, term()}
   def discard_changes(project) when is_project(project) do
-    with git_path <- path(project),
-         {_response_string, 0} <- git_cmd(~w(reset --hard HEAD), cd: git_path),
-         {_response_string, 0} <- git_cmd(~w(clean -f -d), cd: git_path) do
-      :ok
-    else
-      error -> {:error, error}
+    git_path = path(project)
+
+    with :ok <- git(~w(reset --hard HEAD), git_path) do
+      git(~w(clean -f -d), git_path)
     end
   end
 
   @spec delete_branch(Maintenance.project(), branch) :: :ok | {:error, term()}
-  def delete_branch(project, branch) when is_project(project) and is_binary(branch) do
-    with git_path <- path(project),
-         {_response_string, 0} <- git_cmd(["branch", "-D", branch], cd: git_path) do
-      :ok
-    else
-      error -> {:error, error}
-    end
-  end
+  def delete_branch(project, branch) when is_project(project) and is_binary(branch),
+    do: git(["branch", "-D", branch], path(project))
 
   @spec setup_repo(Maintenance.project(), branch()) ::
           {:ok, branch(), branch()} | {:error, term()}
@@ -402,10 +371,9 @@ defmodule Maintenance.Git do
 
     with {:ok, _map} <- cache_repo(project),
          :ok <- checkout(project, main_branch),
-         {:ok, previous_branch} <- get_branch(project),
          :ok <- delete_branch_if_exists(project, new_branch),
          :ok <- checkout_new_branch(project, new_branch) do
-      {:ok, new_branch, previous_branch}
+      {:ok, new_branch, main_branch}
     end
   end
 
