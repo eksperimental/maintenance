@@ -172,6 +172,20 @@ defmodule Mix.Tasks.MaintenanceTest do
       assert printed() == "elixir  unicode    error: network error (connection refused)\n"
     end
 
+    test "tells the HTTP status when the source file of the current Unicode version cannot be fetched" do
+      stub_unicode_versions(%{
+        "/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" =>
+          &Plug.Conn.send_resp(&1, 404, "404: Not Found")
+      })
+
+      assert_raise Mix.Error, fn -> Status.run(["elixir", "unicode"]) end
+
+      assert printed() ==
+               "elixir  unicode    error: could not download " <>
+                 "https://raw.githubusercontent.com/elixir-lang/elixir/main/lib/elixir/unicode/unicode.ex" <>
+                 " (HTTP 404)\n"
+    end
+
     test "tells when unicode.org cannot be reached" do
       stub_unicode_versions(%{
         "/versions/latest/" => &Req.Test.transport_error(&1, :econnrefused)

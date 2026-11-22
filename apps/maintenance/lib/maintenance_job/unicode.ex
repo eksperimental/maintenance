@@ -59,7 +59,7 @@ defmodule MaintenanceJob.Unicode do
           | {:error,
              {:current_unicode_version_not_found | :latest_unicode_version_not_found,
               url :: String.t()}
-             | Exception.t()}
+             | download_error}
   def status(project) when is_project(project) do
     with {:ok, current} <- get_current_unicode_version(project),
          {:ok, latest} <- get_latest_unicode_version() do
@@ -555,21 +555,14 @@ defmodule MaintenanceJob.Unicode do
   def download(file_type, version) when is_file_type(file_type) and is_version(version) do
     url = zip_url(file_type, version)
 
-    case Req.get(url, [decoders: [:zip]] ++ @req_options) do
-      {:ok, %Req.Response{status: 200, body: body}} ->
-        contents = Map.new(body, fn {k, v} -> {List.to_string(k), v} end)
+    with {:ok, body} <- get_body(url, decoders: [:zip]) do
+      contents = Map.new(body, fn {k, v} -> {List.to_string(k), v} end)
 
-        Task.Supervisor.start_child(Maintenance.TaskSupervisor, fn ->
-          write(file_type, version, contents)
-        end)
+      Task.Supervisor.start_child(Maintenance.TaskSupervisor, fn ->
+        write(file_type, version, contents)
+      end)
 
-        {:ok, contents}
-
-      {:ok, %Req.Response{status: status}} ->
-        {:error, {:download_failed, url, status}}
-
-      {:error, exception} ->
-        {:error, exception}
+      {:ok, contents}
     end
   end
 
@@ -595,18 +588,18 @@ defmodule MaintenanceJob.Unicode do
 
   The version is read from a source file of the project on GitHub. When the file holds no
   version where it is expected, the error is `{:current_unicode_version_not_found, url}`,
-  with the URL of the file. When the file cannot be fetched, the error is the exception of
-  the request, such as `Req.TransportError`.
+  with the URL of the file. When GitHub answers with another status than 200, the error is
+  `{:download_failed, url, status}`. When the request fails, the error is its exception,
+  such as `Req.TransportError`.
   """
   @spec get_current_unicode_version(Maintenance.project()) ::
           {:ok, version}
-          | {:error, {:current_unicode_version_not_found, String.t()} | Exception.t()}
+          | {:error, {:current_unicode_version_not_found, String.t()} | download_error}
   def get_current_unicode_version(project = :elixir) do
     url = current_version_url(project)
 
-    with {:ok, response} <- Req.get(url, @req_options) do
-      result =
-        Regex.named_captures(~r/def version, do: {(?<version>\d+, \d+, \d+)}/, response.body)
+    with {:ok, body} <- get_body(url) do
+      result = Regex.named_captures(~r/def version, do: {(?<version>\d+, \d+, \d+)}/, body)
 
       case result do
         %{"version" => version_string} ->
@@ -628,8 +621,8 @@ defmodule MaintenanceJob.Unicode do
   def get_current_unicode_version(project = :otp) do
     url = current_version_url(project)
 
-    with {:ok, response} <- Req.get(url, @req_options) do
-      result = Regex.named_captures(@otp_regex_gen_unicode_version, response.body)
+    with {:ok, body} <- get_body(url) do
+      result = Regex.named_captures(@otp_regex_gen_unicode_version, body)
 
       case result do
         %{"major" => major, "minor" => minor, "patch" => ""} ->
@@ -651,6 +644,14 @@ defmodule MaintenanceJob.Unicode do
         nil ->
           {:error, {:current_unicode_version_not_found, url}}
       end
+    end
+  end
+
+  defp get_body(url, options \\ []) do
+    case Req.get(url, options ++ @req_options) do
+      {:ok, %Req.Response{status: 200, body: body}} -> {:ok, body}
+      {:ok, %Req.Response{status: status}} -> {:error, {:download_failed, url, status}}
+      {:error, exception} -> {:error, exception}
     end
   end
 

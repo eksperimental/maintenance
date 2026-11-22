@@ -81,6 +81,16 @@ defmodule MaintenanceJob.UnicodeTest do
 
       assert Unicode.get_current_unicode_version(:otp) == {:ok, Version.parse!("16.0.0")}
     end
+
+    test "returns the HTTP status when the source file cannot be fetched" do
+      Req.Test.stub(Unicode, &Plug.Conn.send_resp(&1, 503, ~S|spec_version() -> {16,0}.\n|))
+
+      assert Unicode.get_current_unicode_version(:otp) ==
+               {:error,
+                {:download_failed,
+                 "https://raw.githubusercontent.com/erlang/otp/master/lib/stdlib/uc_spec/gen_unicode_mod.escript",
+                 503}}
+    end
   end
 
   describe "update_vendor_info/2" do

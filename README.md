@@ -110,8 +110,9 @@ A `unicode` job says which Unicode version it could not find. `error: current Un
 version not found in <url>` means that the project's source file at `<url>` has no version
 where Maintenance looks for it, so the file has likely changed. `error: latest Unicode
 version not found at https://www.unicode.org/versions/latest/` means that the page did not
-redirect to the page of a Unicode version. When the file or the page cannot be reached, the
-line says `error: network error (<reason>)` instead.
+redirect to the page of a Unicode version. When GitHub answers the request for the file with
+an HTTP error, the line says `error: could not download <url> (HTTP <status>)`. When the
+file or the page cannot be reached, it says `error: network error (<reason>)` instead.
 
 ### 2. Build the commit
 
