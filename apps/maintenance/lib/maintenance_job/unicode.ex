@@ -76,14 +76,19 @@ defmodule MaintenanceJob.Unicode do
   @doc """
   Updates the Unicode files in the checkout of `project` to the `latest` version that
   `status/1` found, and commits them on a new branch.
+
+  When a downloaded zip lacks a file the project copies, the error is
+  `{:missing_from_zip, file_path, url}` and the checkout is not touched.
   """
   @impl MaintenanceJob
   @spec prepare(Maintenance.project(), MaintenanceJob.info()) ::
           {:ok, :committed, String.t()} | {:error, term()}
   def prepare(project, %{latest: latest}) when is_project(project) do
     with {:ok, contents_ucd} <- get(:UCD, latest),
-         {:ok, contents_uts39} <- get(:UTS39, latest) do
-      prepare(project, latest, %{UCD: contents_ucd, UTS39: contents_uts39})
+         {:ok, contents_uts39} <- get(:UTS39, latest),
+         contents = %{UCD: contents_ucd, UTS39: contents_uts39},
+         :ok <- check_copied_files(project, latest, contents) do
+      prepare(project, latest, contents)
     end
   end
 
@@ -136,7 +141,6 @@ defmodule MaintenanceJob.Unicode do
     Util.info("Writing files in repo [#{project}]")
 
     git_path = Git.path(project)
-    unicode_dir = Path.join([git_path, "lib", "elixir", "unicode"])
     elixir_dir = Path.join([git_path, "lib", "elixir"])
 
     # UCD
@@ -153,26 +157,7 @@ defmodule MaintenanceJob.Unicode do
     # Replace IdentifierType.txt by copying original
     #  (from https://www.unicode.org/Public/security/VERSION_NUMBER/)
 
-    fn_tasks =
-      for {dir, file_type, file_name} <- [
-            # UCD
-            {unicode_dir, :UCD, "UnicodeData.txt"},
-            {unicode_dir, :UCD, "PropertyValueAliases.txt"},
-            {unicode_dir, :UCD, "PropList.txt"},
-            {unicode_dir, :UCD, "ScriptExtensions.txt"},
-            {unicode_dir, :UCD, "Scripts.txt"},
-            {unicode_dir, :UCD, "SpecialCasing.txt"},
-
-            # UTS39
-            {unicode_dir, :UTS39, "confusables.txt"},
-            {unicode_dir, :UTS39, "IdentifierType.txt"}
-          ] do
-        fn ->
-          path = Path.join(dir, Path.basename(file_name))
-
-          File.write!(path, Map.get(contents[file_type], file_name))
-        end
-      end
+    fn_tasks = copy_tasks(project, contents)
 
     # Update String.Unicode.version/0
     fn_task_special_casing = fn ->
@@ -301,33 +286,7 @@ defmodule MaintenanceJob.Unicode do
     git_path = Git.path(project)
     unicode_spec_dir = Path.join([git_path, "lib", "stdlib", "uc_spec"])
 
-    unicode_test_dir = Path.join([git_path, "lib", "stdlib", "test", "unicode_util_SUITE_data"])
-
-    fn_tasks =
-      for {dir, file_type, file_path} <- [
-            # lib/stdlib/uc_spec/
-            {unicode_spec_dir, :UCD, "CaseFolding.txt"},
-            {unicode_spec_dir, :UCD, "CompositionExclusions.txt"},
-            {unicode_spec_dir, :UCD, "DerivedCoreProperties.txt"},
-            {unicode_spec_dir, :UCD, "EastAsianWidth.txt"},
-            {unicode_spec_dir, :UCD, "IndicSyllabicCategory.txt"},
-            {unicode_spec_dir, :UCD, "PropList.txt"},
-            {unicode_spec_dir, :UCD, "SpecialCasing.txt"},
-            {unicode_spec_dir, :UCD, "UnicodeData.txt"},
-            {unicode_spec_dir, :UCD, "auxiliary/GraphemeBreakProperty.txt"},
-            {unicode_spec_dir, :UCD, "emoji/emoji-data.txt"},
-
-            # lib/stdlib/test/unicode_util_SUITE_data/
-            {unicode_test_dir, :UCD, "NormalizationTest.txt"},
-            {unicode_test_dir, :UCD, "auxiliary/GraphemeBreakTest.txt"},
-            {unicode_test_dir, :UCD, "auxiliary/LineBreakTest.txt"}
-          ] do
-        fn ->
-          dir
-          |> Path.join(Path.basename(file_path))
-          |> File.write!(Map.get(contents[file_type], file_path))
-        end
-      end
+    fn_tasks = copy_tasks(project, contents)
 
     # lib/stdlib/uc_spec/README-UPDATE.txt
     fn_task_readme_update = fn ->
@@ -415,6 +374,76 @@ defmodule MaintenanceJob.Unicode do
 
   defp build_unicode_version(version) when is_struct(version, Version) do
     "#{version.major},#{version.minor},#{version.patch}"
+  end
+
+  # The files a project copies from the zips: the folder in the checkout they go to, the zip
+  # they come from, and their path within the zip.
+  defp copied_files(:elixir) do
+    unicode_dir = "lib/elixir/unicode"
+
+    [
+      # UCD
+      {unicode_dir, :UCD, "UnicodeData.txt"},
+      {unicode_dir, :UCD, "PropertyValueAliases.txt"},
+      {unicode_dir, :UCD, "PropList.txt"},
+      {unicode_dir, :UCD, "ScriptExtensions.txt"},
+      {unicode_dir, :UCD, "Scripts.txt"},
+      {unicode_dir, :UCD, "SpecialCasing.txt"},
+
+      # UTS39
+      {unicode_dir, :UTS39, "confusables.txt"},
+      {unicode_dir, :UTS39, "IdentifierType.txt"}
+    ]
+  end
+
+  defp copied_files(:otp) do
+    unicode_spec_dir = "lib/stdlib/uc_spec"
+    unicode_test_dir = "lib/stdlib/test/unicode_util_SUITE_data"
+
+    [
+      {unicode_spec_dir, :UCD, "CaseFolding.txt"},
+      {unicode_spec_dir, :UCD, "CompositionExclusions.txt"},
+      {unicode_spec_dir, :UCD, "DerivedCoreProperties.txt"},
+      {unicode_spec_dir, :UCD, "EastAsianWidth.txt"},
+      {unicode_spec_dir, :UCD, "IndicSyllabicCategory.txt"},
+      {unicode_spec_dir, :UCD, "PropList.txt"},
+      {unicode_spec_dir, :UCD, "SpecialCasing.txt"},
+      {unicode_spec_dir, :UCD, "UnicodeData.txt"},
+      {unicode_spec_dir, :UCD, "auxiliary/GraphemeBreakProperty.txt"},
+      {unicode_spec_dir, :UCD, "emoji/emoji-data.txt"},
+      {unicode_test_dir, :UCD, "NormalizationTest.txt"},
+      {unicode_test_dir, :UCD, "auxiliary/GraphemeBreakTest.txt"},
+      {unicode_test_dir, :UCD, "auxiliary/LineBreakTest.txt"}
+    ]
+  end
+
+  defp check_copied_files(project, version, contents) do
+    missing =
+      project
+      |> copied_files()
+      |> Enum.find(fn {_dir, file_type, file_path} ->
+        not Map.has_key?(contents[file_type], file_path)
+      end)
+
+    case missing do
+      nil ->
+        :ok
+
+      {_dir, file_type, file_path} ->
+        {:error, {:missing_from_zip, file_path, zip_url(file_type, version)}}
+    end
+  end
+
+  defp copy_tasks(project, contents) do
+    git_path = Git.path(project)
+
+    for {dir, file_type, file_path} <- copied_files(project) do
+      fn ->
+        path = Path.join([git_path, dir, Path.basename(file_path)])
+
+        File.write!(path, Map.fetch!(contents[file_type], file_path))
+      end
+    end
   end
 
   # Writes the files and commits them on a new branch, then returns to the branch the
@@ -523,20 +552,9 @@ defmodule MaintenanceJob.Unicode do
   such as `Req.TransportError`.
   """
   @spec download(file_type, version) :: {:ok, contents} | {:error, download_error}
-  def download(:UCD, version) when is_version(version) do
-    download(:UCD, version, "https://www.unicode.org/Public/#{version}/ucd/UCD.zip")
-  end
+  def download(file_type, version) when is_file_type(file_type) and is_version(version) do
+    url = zip_url(file_type, version)
 
-  def download(:UTS39, version) when is_version(version) do
-    download(
-      :UTS39,
-      version,
-      "https://www.unicode.org/Public/#{version}/security/uts39-data-#{version}.zip"
-    )
-  end
-
-  defp download(file_type, version, url)
-       when is_file_type(file_type) and is_version(version) and is_binary(url) do
     case Req.get(url, [decoders: [:zip]] ++ @req_options) do
       {:ok, %Req.Response{status: 200, body: body}} ->
         contents = Map.new(body, fn {k, v} -> {List.to_string(k), v} end)
@@ -554,6 +572,11 @@ defmodule MaintenanceJob.Unicode do
         {:error, exception}
     end
   end
+
+  defp zip_url(:UCD, version), do: "https://www.unicode.org/Public/#{version}/ucd/UCD.zip"
+
+  defp zip_url(:UTS39, version),
+    do: "https://www.unicode.org/Public/#{version}/security/uts39-data-#{version}.zip"
 
   @doc """
   Gets the `file_type` files of `version`, from the cache when they were downloaded before,

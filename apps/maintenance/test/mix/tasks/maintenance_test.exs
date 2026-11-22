@@ -15,6 +15,15 @@ defmodule Mix.Tasks.MaintenanceTest do
   @branch "fake_job_1"
   @pull_request_url "https://github.com/some-account/elixir/pull/3"
 
+  @ucd_files ~w(
+    CaseFolding.txt CompositionExclusions.txt DerivedCoreProperties.txt EastAsianWidth.txt
+    IndicSyllabicCategory.txt NormalizationTest.txt PropList.txt PropertyValueAliases.txt
+    ScriptExtensions.txt Scripts.txt SpecialCasing.txt UnicodeData.txt
+    auxiliary/GraphemeBreakProperty.txt auxiliary/GraphemeBreakTest.txt
+    auxiliary/LineBreakTest.txt emoji/emoji-data.txt
+  )
+  @uts39_files ~w(IdentifierType.txt confusables.txt)
+
   setup do
     shell = Mix.shell()
     Mix.shell(Mix.Shell.Process)
@@ -349,6 +358,47 @@ defmodule Mix.Tasks.MaintenanceTest do
                  "failed: fatal: '#{tmp_dir}/missing' does not appear to be a git repository"
     end
 
+    test "names the Unicode file missing from the download and leaves the checkout as it was" do
+      local = Git.path(:elixir)
+      File.rm_rf!(local)
+      on_exit(fn -> File.rm_rf!(local) end)
+
+      unicode_module = Path.join(local, "lib/elixir/unicode/unicode.ex")
+
+      for {path, text} <- [
+            {unicode_module, "  def version, do: {16, 0, 0}\n"},
+            {Path.join(local, "lib/elixir/pages/references/unicode-syntax.md"), ""},
+            {Path.join(local, "lib/elixir/lib/string.ex"), ""}
+          ] do
+        path
+        |> Path.dirname()
+        |> File.mkdir_p!()
+
+        File.write!(path, text)
+      end
+
+      git!(local, ~w(init --quiet --initial-branch main))
+      git!(local, ~w(add .))
+      commit!(local, "main")
+
+      # The checkout stands in for upstream, so it is already up to date.
+      put_env("GIT_CONFIG_COUNT", "1")
+      put_env("GIT_CONFIG_KEY_0", "url.file://#{local}.insteadOf")
+      put_env("GIT_CONFIG_VALUE_0", "https://github.com/elixir-lang/elixir")
+
+      stub_unicode_versions(unicode_zips("UnicodeData.txt"))
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Could not build the commit for elixir unicode: UnicodeData.txt missing from " <>
+                 "https://www.unicode.org/Public/17.0.0/ucd/UCD.zip"
+
+      assert File.read!(unicode_module) == "  def version, do: {16, 0, 0}\n"
+      assert git!(local, ~w(status --porcelain)) == ""
+      assert git!(local, ["branch", "--format=%(refname:short)"]) == "main"
+    end
+
     test "shows where the commit is and what to run next", %{tmp_dir: _tmp_dir} do
       local = Git.path(:elixir)
       File.rm_rf!(local)
@@ -549,9 +599,9 @@ defmodule Mix.Tasks.MaintenanceTest do
     |> File.rm_rf!()
   end
 
-  # Answers the downloads of the Unicode 17.0.0 files with empty zips, and removes them from
-  # the cache when the test ends.
-  defp unicode_zips() do
+  # Answers the downloads of the Unicode 17.0.0 files with zips that hold every file the jobs
+  # copy, empty, except `missing`. Removes them from the cache when the test ends.
+  defp unicode_zips(missing \\ nil) do
     on_exit(fn ->
       for pid <- Task.Supervisor.children(Maintenance.TaskSupervisor) do
         ref = Process.monitor(pid)
@@ -567,17 +617,20 @@ defmodule Mix.Tasks.MaintenanceTest do
 
     forget_cached_ucd()
 
-    {:ok, {_name, zip}} = :zip.create(~c"unicode.zip", [{~c"ReadMe.txt", ""}], [:memory])
+    send_zip = fn file_names ->
+      entries = for name <- file_names -- [missing], do: {String.to_charlist(name), ""}
+      {:ok, {_name, zip}} = :zip.create(~c"unicode.zip", entries, [:memory])
 
-    send_zip = fn conn ->
-      conn
-      |> Plug.Conn.put_resp_content_type("application/zip", nil)
-      |> Plug.Conn.send_resp(200, zip)
+      fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/zip", nil)
+        |> Plug.Conn.send_resp(200, zip)
+      end
     end
 
     %{
-      "/Public/17.0.0/ucd/UCD.zip" => send_zip,
-      "/Public/17.0.0/security/uts39-data-17.0.0.zip" => send_zip
+      "/Public/17.0.0/ucd/UCD.zip" => send_zip.(@ucd_files),
+      "/Public/17.0.0/security/uts39-data-17.0.0.zip" => send_zip.(@uts39_files)
     }
   end
 
