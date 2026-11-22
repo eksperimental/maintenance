@@ -135,6 +135,9 @@ checkout, for example because GitHub cannot be reached, `run` stops with the Git
 and the first line of what Git said, such as `git clone ... failed: fatal: unable to access ...`,
 or its exit status when Git says nothing. When the checkout already has the files the job
 writes, `run` stops with `nothing to commit, the checkout already has the files the job writes`.
+When Git cannot list the files or name the author of the new commit, `run` stops with
+`Committed <branch> in <path>, but could not describe it: git ... failed: exit status <N>`.
+Git prints its reason above that line, and the commit stays on the branch.
 
 ### 3. Publish it
 

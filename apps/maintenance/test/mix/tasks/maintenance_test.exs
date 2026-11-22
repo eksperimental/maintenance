@@ -539,6 +539,34 @@ defmodule Mix.Tasks.MaintenanceTest do
                "Could not build the commit for elixir unicode: git commit failed: exit status 1"
     end
 
+    test "says the commit is there when Git cannot summarize what it changes",
+         %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{"post-commit" => "git config diff.renames bogus"})
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Committed unicode_17.0.0 in #{local}, but could not describe it: " <>
+                 "git diff --stat main...unicode_17.0.0 -- failed: exit status 128"
+
+      assert git!(local, ~w(cat-file -p unicode_17.0.0)) =~ "Update Unicode to version 17.0.0"
+    end
+
+    test "says the commit is there when Git cannot name its author", %{tmp_dir: tmp_dir} do
+      local = elixir_checkout!(tmp_dir, %{})
+      put_env("GIT_CONFIG_COUNT", "3")
+      put_env("GIT_CONFIG_KEY_2", "log.date")
+      put_env("GIT_CONFIG_VALUE_2", "bogus")
+
+      error = assert_raise Mix.Error, fn -> Run.run(["elixir", "unicode"]) end
+
+      assert error.message ==
+               "Committed unicode_17.0.0 in #{local}, but could not describe it: " <>
+                 "git log -1 --format=%an <%ae> unicode_17.0.0 -- failed: exit status 128"
+
+      assert git!(local, ~w(cat-file -p unicode_17.0.0)) =~ "Update Unicode to version 17.0.0"
+    end
+
     test "names the Unicode file missing from the download and leaves the checkout as it was" do
       local = Git.path(:elixir)
       File.rm_rf!(local)

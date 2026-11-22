@@ -40,20 +40,26 @@ defmodule Mix.Tasks.Maintenance.Run do
         Mix.shell().info("An open pull request already exists: #{url}")
 
       {:committed, %{branch: branch, path: path}} ->
-        {:ok, stat} = Git.diff_stat(project, branch)
-        {:ok, author} = Git.commit_author(project, branch)
+        with {:ok, stat} <- Git.diff_stat(project, branch),
+             {:ok, author} <- Git.commit_author(project, branch) do
+          Mix.shell().info("""
+          Committed #{branch} as #{author} in #{path}
 
-        Mix.shell().info("""
-        Committed #{branch} as #{author} in #{path}
+          #{stat}
 
-        #{stat}
+          Inspect the commit:
+            git -C #{path} show --stat #{branch}
 
-        Inspect the commit:
-          git -C #{path} show --stat #{branch}
-
-        Push it and open the pull request in the fork of #{fork}:
-          mix maintenance.publish #{project} #{job}#{fork_option(options)}
-        """)
+          Push it and open the pull request in the fork of #{fork}:
+            mix maintenance.publish #{project} #{job}#{fork_option(options)}
+          """)
+        else
+          {:error, reason} ->
+            Mix.raise(
+              "Committed #{branch} in #{path}, but could not describe it: " <>
+                CLI.describe_error(reason)
+            )
+        end
 
       {:error, :missing_git_identity} ->
         Mix.raise("""

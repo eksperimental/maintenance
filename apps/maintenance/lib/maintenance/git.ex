@@ -59,9 +59,11 @@ defmodule Maintenance.Git do
   """
   @spec commit_author(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
   def commit_author(project, branch) when is_project(project) and is_binary(branch) do
-    case git_cmd(["log", "-1", "--format=%an <%ae>", branch, "--"], cd: path(project)) do
+    args = ["log", "-1", "--format=%an <%ae>", branch, "--"]
+
+    case git_cmd(args, cd: path(project)) do
       {author, 0} -> {:ok, String.trim(author)}
-      error -> {:error, error}
+      {output, status} -> git_failed(args, output, status)
     end
   end
 
@@ -186,7 +188,8 @@ defmodule Maintenance.Git do
     end
   end
 
-  # A hook can fail without a word, which leaves only the exit status to tell.
+  # A hook can fail without a word, and some steps leave what Git says on stderr so that it stays
+  # out of their result, which leaves only the exit status to tell.
   defp git_failed(args, output, status) do
     reason =
       case String.trim(output) do
@@ -316,12 +319,11 @@ defmodule Maintenance.Git do
   @spec diff_stat(Maintenance.project(), branch) :: {:ok, String.t()} | {:error, term()}
   def diff_stat(project, branch) when is_project(project) and is_binary(branch) do
     main_branch = Project.config!(project, :main_branch)
+    args = ["diff", "--stat", "#{main_branch}...#{branch}", "--"]
 
-    case git_cmd(["diff", "--stat", "#{main_branch}...#{branch}", "--"],
-           cd: path(project)
-         ) do
+    case git_cmd(args, cd: path(project)) do
       {stat, 0} -> {:ok, String.trim_trailing(stat)}
-      error -> {:error, error}
+      {output, status} -> git_failed(args, output, status)
     end
   end
 
