@@ -66,30 +66,32 @@ defmodule Maintenance.Git do
   end
 
   @doc """
-  Returns the last commit of the given cached Git `project` repository.
+  Returns the last commit of the upstream main branch of `project`.
+
+  When the upstream has no main branch, the error is `{:ref_not_found, ref}`.
   """
-  @spec get_last_commit_id(Maintenance.project()) :: {:ok, String.t()} | {:error, term}
+  @spec get_last_commit_id(Maintenance.project()) ::
+          {:ok, String.t()} | {:error, {:ref_not_found, String.t()} | term()}
   def get_last_commit_id(project) when is_project(project) do
-    # live: git ls-remote https://github.com/elixir-lang/elixir refs/heads/main
+    ref = "refs/heads/" <> Project.config!(project, :main_branch)
+    args = ~w(ls-remote #{Project.git_url(project)} #{ref})
 
-    response =
-      git_cmd(
-        ~w(ls-remote #{Project.git_url(project)} refs/heads/#{Project.config!(project, :main_branch)}),
-        stderr_to_stdout: true
-      )
-
-    case response do
-      {response_string, 0} ->
-        commit_id =
-          response_string
-          |> String.split()
-          |> List.first()
-
-        {:ok, commit_id}
-
-      {_response_string, _exit_status} = error ->
-        {:error, error}
+    case git_cmd(args, stderr_to_stdout: true) do
+      {output, 0} -> find_commit_id(output, ref)
+      {output, _status} -> git_failed(args, output)
     end
+  end
+
+  # The output can hold lines Git wrote to stderr, and the branches whose names end in `ref`.
+  defp find_commit_id(output, ref) do
+    output
+    |> String.split("\n")
+    |> Enum.find_value({:error, {:ref_not_found, ref}}, fn line ->
+      case String.split(line, "\t") do
+        [commit_id, ^ref] -> {:ok, commit_id}
+        _other -> nil
+      end
+    end)
   end
 
   #############################

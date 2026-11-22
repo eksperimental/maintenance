@@ -1,6 +1,7 @@
 defmodule Maintenance.GitTest do
   use ExUnit.Case, async: false
 
+  import Maintenance.EnvHelpers
   import Maintenance.GitHelpers
 
   alias Maintenance.Git
@@ -56,10 +57,7 @@ defmodule Maintenance.GitTest do
   describe "cache_repo/1" do
     test "discards leftover changes when the checkout already has the upstream main branch",
          context do
-      upstream = Path.join(context.tmp_dir, "upstream.git")
-      git!(context.tmp_dir, ["init", "--quiet", "--bare", upstream])
-      git!(context.local, ["push", "--quiet", upstream, "main"])
-      redirect_url(Project.git_url(@project), "file://" <> upstream)
+      upstream!(context)
 
       tracked = Path.join(context.local, "file.txt")
       untracked = Path.join(context.local, "stray.txt")
@@ -69,6 +67,35 @@ defmodule Maintenance.GitTest do
       assert Git.cache_repo(@project) == {:ok, %{cached?: true}}
 
       assert git!(context.local, ~w(status --porcelain)) == ""
+    end
+  end
+
+  describe "get_last_commit_id/1" do
+    setup context do
+      %{upstream: upstream!(context)}
+    end
+
+    test "reads the commit of the main branch when Git also writes to stderr", context do
+      put_env("GIT_TRACE", "1")
+
+      assert Git.get_last_commit_id(@project) == {:ok, context.main}
+    end
+
+    test "skips other branches whose names end in the main branch", context do
+      git!(context.local, [
+        "push",
+        "--quiet",
+        context.upstream,
+        "#{context.stale}:refs/heads/a/refs/heads/main"
+      ])
+
+      assert Git.get_last_commit_id(@project) == {:ok, context.main}
+    end
+
+    test "returns an error when the upstream has no main branch", context do
+      git!(context.upstream, ~w(update-ref -d refs/heads/main))
+
+      assert Git.get_last_commit_id(@project) == {:error, {:ref_not_found, "refs/heads/main"}}
     end
   end
 
@@ -135,13 +162,15 @@ defmodule Maintenance.GitTest do
       "GIT_CONFIG_VALUE_0" => url
     }
 
-    for {name, value} <- variables do
-      previous = System.get_env(name)
-      on_exit(fn -> restore_env(name, previous) end)
-      System.put_env(name, value)
-    end
+    Enum.each(variables, fn {name, value} -> put_env(name, value) end)
   end
 
-  defp restore_env(name, nil), do: System.delete_env(name)
-  defp restore_env(name, value), do: System.put_env(name, value)
+  # A bare repository with the checkout's main branch, which stands in for the upstream.
+  defp upstream!(context) do
+    upstream = Path.join(context.tmp_dir, "upstream.git")
+    git!(context.tmp_dir, ["init", "--quiet", "--bare", upstream])
+    git!(context.local, ["push", "--quiet", upstream, "main"])
+    redirect_url(Project.git_url(@project), "file://" <> upstream)
+    upstream
+  end
 end
